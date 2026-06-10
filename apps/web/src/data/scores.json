@@ -1,0 +1,410 @@
+[
+  {
+    "briefId": "brief-001",
+    "overallScore": 87,
+    "categoryScores": {
+      "industryFit": 92,
+      "descriptionMatch": 85,
+      "operationalMatch": 84,
+      "commercialViability": 88,
+      "growthSignals": 86
+    },
+    "matchedKeywords": [
+      "B2B SaaS",
+      "enterprise",
+      "data analytics",
+      "recurring revenue",
+      "mid-market",
+      "predictive insights",
+      "Series B funding",
+      "growth phase"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Crunchbase profile",
+      "Recent press releases",
+      "Job postings"
+    ],
+    "rationale": {
+      "industryFit": "Perfect match for B2B SaaS analytics vertical with proven enterprise focus",
+      "descriptionMatch": "Strong alignment with ICP keywords including enterprise, recurring revenue, and growth signals",
+      "operationalMatch": "Active hiring in sales and customer success indicates operational maturity and growth readiness",
+      "commercialViability": "Solid financial metrics with recent Series B funding and strong unit economics",
+      "growthSignals": "Multiple growth indicators including funding, hiring, and market expansion"
+    }
+  },
+  {
+    "briefId": "brief-002",
+    "overallScore": 92,
+    "categoryScores": {
+      "industryFit": 95,
+      "descriptionMatch": 91,
+      "operationalMatch": 90,
+      "commercialViability": 94,
+      "growthSignals": 90
+    },
+    "matchedKeywords": [
+      "B2B",
+      "enterprise",
+      "FinTech",
+      "payment processing",
+      "embedded finance",
+      "high retention",
+      "strategic partnerships",
+      "proven exits"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Crunchbase profile",
+      "Industry reports",
+      "Partnership announcements"
+    ],
+    "rationale": {
+      "industryFit": "Exceptional match for enterprise FinTech vertical with strong B2B focus",
+      "descriptionMatch": "Outstanding alignment with premium ICP criteria including enterprise sales and high contract values",
+      "operationalMatch": "Mature operations with proven enterprise sales motion and strong retention metrics",
+      "commercialViability": "Excellent financial profile with high ACV and strong unit economics",
+      "growthSignals": "Strong growth indicators including strategic partnerships and experienced leadership team"
+    }
+  },
+  {
+    "briefId": "brief-003",
+    "overallScore": 78,
+    "categoryScores": {
+      "industryFit": 82,
+      "descriptionMatch": 76,
+      "operationalMatch": 78,
+      "commercialViability": 75,
+      "growthSignals": 79
+    },
+    "matchedKeywords": [
+      "B2B",
+      "healthcare",
+      "enterprise",
+      "interoperability",
+      "recurring revenue",
+      "HIPAA compliant",
+      "multi-year contracts",
+      "SOC 2"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Healthcare IT News",
+      "Compliance certifications",
+      "Customer case studies"
+    ],
+    "rationale": {
+      "industryFit": "Good match for healthcare vertical with enterprise B2B focus",
+      "descriptionMatch": "Solid alignment with ICP criteria including enterprise sales and recurring revenue",
+      "operationalMatch": "Strong operational maturity demonstrated by compliance certifications",
+      "commercialViability": "Good financial profile with multi-year contracts and strong retention",
+      "growthSignals": "Positive growth indicators including recent certifications and market expansion"
+    }
+  },
+  {
+    "briefId": "brief-004",
+    "overallScore": 83,
+    "categoryScores": {
+      "industryFit": 88,
+      "descriptionMatch": 82,
+      "operationalMatch": 81,
+      "commercialViability": 84,
+      "growthSignals": 80
+    },
+    "matchedKeywords": [
+      "B2B SaaS",
+      "enterprise",
+      "supply chain",
+      "AI-powered",
+      "manufacturing",
+      "measurable ROI",
+      "expansion revenue",
+      "vertical expansion"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Industry publications",
+      "Customer testimonials",
+      "Product documentation"
+    ],
+    "rationale": {
+      "industryFit": "Strong match for enterprise supply chain tech vertical",
+      "descriptionMatch": "Good alignment with ICP including enterprise focus and clear value proposition",
+      "operationalMatch": "Solid operational capabilities with proven implementation methodology",
+      "commercialViability": "Strong financial metrics with expansion revenue and measurable customer ROI",
+      "growthSignals": "Positive growth trajectory with vertical expansion into automotive and aerospace"
+    }
+  },
+  {
+    "briefId": "brief-005",
+    "overallScore": 74,
+    "categoryScores": {
+      "industryFit": 78,
+      "descriptionMatch": 73,
+      "operationalMatch": 72,
+      "commercialViability": 74,
+      "growthSignals": 73
+    },
+    "matchedKeywords": [
+      "B2B",
+      "commerce platform",
+      "wholesale",
+      "recurring revenue",
+      "enterprise",
+      "headless commerce",
+      "distribution",
+      "expansion potential"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "E-commerce industry reports",
+      "Customer case studies",
+      "Product reviews"
+    ],
+    "rationale": {
+      "industryFit": "Good match for B2B commerce vertical with wholesale focus",
+      "descriptionMatch": "Moderate alignment with ICP criteria, strong B2B focus but competitive market",
+      "operationalMatch": "Adequate operational capabilities with proven customer implementations",
+      "commercialViability": "Solid financial profile with recurring revenue and expansion opportunities",
+      "growthSignals": "Moderate growth signals with recent customer wins in target verticals"
+    }
+  },
+  {
+    "briefId": "brief-006",
+    "overallScore": 58,
+    "categoryScores": {
+      "industryFit": 55,
+      "descriptionMatch": 52,
+      "operationalMatch": 62,
+      "commercialViability": 60,
+      "growthSignals": 61
+    },
+    "matchedKeywords": [
+      "manufacturing",
+      "B2B",
+      "digital transformation",
+      "e-commerce",
+      "traditional business"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Industry publications",
+      "Digital transformation announcements"
+    ],
+    "rationale": {
+      "industryFit": "Moderate match - traditional manufacturing with emerging digital initiatives",
+      "descriptionMatch": "Limited alignment with ICP due to early-stage digital transformation",
+      "operationalMatch": "Strong traditional operations but unclear digital maturity",
+      "commercialViability": "Moderate financial profile with traditional revenue model",
+      "growthSignals": "Some positive signals from digital transformation but unclear commitment level"
+    }
+  },
+  {
+    "briefId": "brief-007",
+    "overallScore": 89,
+    "categoryScores": {
+      "industryFit": 93,
+      "descriptionMatch": 88,
+      "operationalMatch": 87,
+      "commercialViability": 91,
+      "growthSignals": 86
+    },
+    "matchedKeywords": [
+      "B2B SaaS",
+      "enterprise",
+      "iPaaS",
+      "integration platform",
+      "high retention",
+      "Series C funding",
+      "international expansion",
+      "expansion revenue"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Crunchbase profile",
+      "Integration marketplace",
+      "Customer reviews"
+    ],
+    "rationale": {
+      "industryFit": "Excellent match for enterprise iPaaS vertical with strong B2B SaaS model",
+      "descriptionMatch": "Strong alignment with premium ICP criteria including high retention and expansion revenue",
+      "operationalMatch": "Mature operations with proven enterprise sales and customer success capabilities",
+      "commercialViability": "Excellent financial profile with recent Series C funding and strong unit economics",
+      "growthSignals": "Strong growth indicators including international expansion and market leadership"
+    }
+  },
+  {
+    "briefId": "brief-008",
+    "overallScore": 43,
+    "categoryScores": {
+      "industryFit": 35,
+      "descriptionMatch": 38,
+      "operationalMatch": 52,
+      "commercialViability": 45,
+      "growthSignals": 45
+    },
+    "matchedKeywords": [
+      "retail",
+      "B2C",
+      "consumer"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Retail industry reports"
+    ],
+    "rationale": {
+      "industryFit": "Poor match - primarily B2C retail with minimal B2B operations",
+      "descriptionMatch": "Weak alignment with ICP due to B2C focus and lack of B2B revenue",
+      "operationalMatch": "Adequate retail operations but not relevant to our B2B focus",
+      "commercialViability": "Moderate financial profile but wrong business model for our services",
+      "growthSignals": "Some growth signals but in B2C market which is outside our ICP"
+    }
+  },
+  {
+    "briefId": "brief-009",
+    "overallScore": 85,
+    "categoryScores": {
+      "industryFit": 90,
+      "descriptionMatch": 84,
+      "operationalMatch": 83,
+      "commercialViability": 87,
+      "growthSignals": 81
+    },
+    "matchedKeywords": [
+      "B2B",
+      "enterprise",
+      "cybersecurity",
+      "zero-trust",
+      "Fortune 500",
+      "high retention",
+      "FedRAMP",
+      "compliance"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Cybersecurity industry reports",
+      "FedRAMP marketplace",
+      "Customer case studies"
+    ],
+    "rationale": {
+      "industryFit": "Excellent match for enterprise cybersecurity vertical with strong B2B focus",
+      "descriptionMatch": "Strong alignment with ICP including enterprise sales and high contract values",
+      "operationalMatch": "Mature operations with proven enterprise sales and compliance capabilities",
+      "commercialViability": "Strong financial profile with high ACV and excellent retention",
+      "growthSignals": "Positive growth indicators including FedRAMP authorization and government sector expansion"
+    }
+  },
+  {
+    "briefId": "brief-010",
+    "overallScore": 76,
+    "categoryScores": {
+      "industryFit": 80,
+      "descriptionMatch": 75,
+      "operationalMatch": 74,
+      "commercialViability": 77,
+      "growthSignals": 74
+    },
+    "matchedKeywords": [
+      "B2B SaaS",
+      "HR tech",
+      "mid-market",
+      "cloud-based",
+      "recurring revenue",
+      "high retention",
+      "expansion revenue",
+      "compliance"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "HR tech industry reports",
+      "Customer reviews",
+      "Product documentation"
+    ],
+    "rationale": {
+      "industryFit": "Good match for HR tech vertical with mid-market B2B SaaS focus",
+      "descriptionMatch": "Solid alignment with ICP including mid-market focus and recurring revenue",
+      "operationalMatch": "Strong operational capabilities with proven mid-market sales motion",
+      "commercialViability": "Good financial profile with high retention and predictable expansion revenue",
+      "growthSignals": "Positive growth signals including product innovation and market expansion"
+    }
+  },
+  {
+    "briefId": "brief-011",
+    "overallScore": 81,
+    "categoryScores": {
+      "industryFit": 85,
+      "descriptionMatch": 80,
+      "operationalMatch": 79,
+      "commercialViability": 82,
+      "growthSignals": 79
+    },
+    "matchedKeywords": [
+      "B2B SaaS",
+      "business intelligence",
+      "self-service",
+      "enterprise",
+      "land-and-expand",
+      "product-led growth",
+      "vertical expansion",
+      "financial services"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "BI industry reports",
+      "Customer testimonials",
+      "Product reviews"
+    ],
+    "rationale": {
+      "industryFit": "Strong match for BI/analytics vertical with B2B SaaS model",
+      "descriptionMatch": "Good alignment with ICP including land-and-expand strategy and enterprise focus",
+      "operationalMatch": "Solid operational capabilities with product-led growth motion",
+      "commercialViability": "Strong financial profile with expansion revenue and high user engagement",
+      "growthSignals": "Positive growth trajectory with vertical expansion into financial services and healthcare"
+    }
+  },
+  {
+    "briefId": "brief-012",
+    "overallScore": 64,
+    "categoryScores": {
+      "industryFit": 68,
+      "descriptionMatch": 62,
+      "operationalMatch": 63,
+      "commercialViability": 60,
+      "growthSignals": 67
+    },
+    "matchedKeywords": [
+      "B2B",
+      "enterprise",
+      "sustainability",
+      "carbon tracking",
+      "ESG reporting",
+      "compliance",
+      "emerging market"
+    ],
+    "sources": [
+      "Company website",
+      "LinkedIn company page",
+      "Sustainability tech reports",
+      "ESG industry publications",
+      "Customer case studies"
+    ],
+    "rationale": {
+      "industryFit": "Moderate match for emerging sustainability tech vertical",
+      "descriptionMatch": "Limited alignment with ICP due to market maturity and budget uncertainty",
+      "operationalMatch": "Adequate operational capabilities but market adoption still developing",
+      "commercialViability": "Moderate financial profile with variable sales cycles and discretionary spending",
+      "growthSignals": "Some positive signals from growing ESG focus but dependent on regulatory drivers"
+    }
+  }
+]
