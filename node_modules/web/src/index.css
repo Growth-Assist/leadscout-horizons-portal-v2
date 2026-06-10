@@ -1,0 +1,112 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "DM Sans", sans-serif;
+  overflow-x: clip;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@layer base {
+  :root, .dark {
+    --background: 0 0% 3%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 195 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 195 70% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 195 70% 45%;
+    --radius: 0.75rem;
+    
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 195 70% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 195 70% 45%;
+
+    /* Chart Colors */
+    --chart-1: 195 70% 50%;
+    --chart-2: 150 60% 45%;
+    --chart-3: 40 80% 55%;
+    --chart-4: 0 65% 60%;
+    --chart-5: 280 60% 65%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@layer components {
+  .table-row-interactive {
+    @apply transition-colors hover:bg-muted/50 cursor-pointer;
+  }
+  
+  .email-link {
+    @apply text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline cursor-pointer pointer-events-auto transition-colors;
+  }
+  
+  .recharts-cartesian-grid-horizontal line,
+  .recharts-cartesian-grid-vertical line {
+    stroke: hsl(var(--border));
+  }
+  
+  .recharts-tooltip-cursor {
+    fill: hsl(var(--muted) / 0.5);
+  }
+
+  /* Drawer Utilities */
+  .drawer-overlay {
+    @apply fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity;
+  }
+  
+  .drawer-panel {
+    @apply fixed inset-y-0 right-0 z-50 w-full md:w-[45vw] bg-background border-l border-border shadow-2xl flex flex-col;
+    animation: slideInFromRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .drawer-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-border bg-background shrink-0;
+  }
+  
+  .drawer-content {
+    @apply flex-1 overflow-y-auto p-6 space-y-8 bg-background;
+  }
+  
+  .drawer-footer {
+    @apply px-6 py-4 border-t border-border bg-background shrink-0 flex items-center justify-end gap-3;
+  }
+}

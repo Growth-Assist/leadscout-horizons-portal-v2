@@ -1,0 +1,109 @@
+{
+  "clientName": "Growth Assist",
+  "targetIndustries": [
+    "B2B SaaS",
+    "Enterprise Software",
+    "FinTech",
+    "Healthcare Tech",
+    "Supply Chain Tech",
+    "Cybersecurity",
+    "HR Tech",
+    "Business Intelligence",
+    "Integration Platforms"
+  ],
+  "descriptionKeywords": {
+    "positive": [
+      "B2B",
+      "enterprise",
+      "SaaS",
+      "recurring revenue",
+      "subscription",
+      "mid-market",
+      "Fortune 500",
+      "platform",
+      "API",
+      "integration",
+      "cloud-based",
+      "scalable",
+      "multi-tenant",
+      "white-label",
+      "channel partners",
+      "reseller",
+      "MSP",
+      "value-added reseller",
+      "strategic partnerships",
+      "ecosystem"
+    ],
+    "negative": [
+      "B2C",
+      "consumer",
+      "retail",
+      "direct-to-consumer",
+      "e-commerce",
+      "marketplace",
+      "freelance",
+      "gig economy",
+      "individual",
+      "personal",
+      "hobby",
+      "side project"
+    ]
+  },
+  "disqualifyKeywords": [
+    "B2C only",
+    "consumer-focused",
+    "retail chain",
+    "direct-to-consumer",
+    "individual consumers",
+    "personal use",
+    "hobby project",
+    "pre-revenue",
+    "concept stage",
+    "seeking co-founder"
+  ],
+  "weights": {
+    "industryFit": 0.25,
+    "descriptionMatch": 0.20,
+    "operationalMatch": 0.20,
+    "commercialViability": 0.20,
+    "growthSignals": 0.15
+  },
+  "thresholds": {
+    "target": 70,
+    "watch": 50,
+    "reject": 49
+  },
+  "dealbreakers": [
+    {
+      "rule": "B2C-only business model",
+      "description": "Companies that exclusively serve individual consumers with no B2B operations"
+    },
+    {
+      "rule": "Pre-revenue or concept stage",
+      "description": "Companies without proven revenue or market traction"
+    },
+    {
+      "rule": "Non-tech industries",
+      "description": "Traditional industries without significant technology component or digital transformation"
+    },
+    {
+      "rule": "Below minimum revenue threshold",
+      "description": "Companies with less than $1M ARR or equivalent revenue"
+    }
+  ],
+  "scoringLogic": {
+    "industryFit": "Measures alignment with target industries. Higher scores for exact matches in B2B SaaS, FinTech, Healthcare Tech, etc. Lower scores for adjacent or emerging industries.",
+    "descriptionMatch": "Evaluates presence of positive keywords (B2B, enterprise, SaaS, recurring revenue) and absence of negative keywords (B2C, consumer, retail). Weighted by keyword importance.",
+    "operationalMatch": "Assesses operational maturity through signals like hiring activity, certifications, partnerships, and organizational structure. Indicates readiness for growth services.",
+    "commercialViability": "Analyzes business model strength including revenue model, contract values, retention rates, unit economics, and funding status. Indicates ability to invest in growth.",
+    "growthSignals": "Identifies indicators of growth trajectory including funding rounds, market expansion, product launches, leadership hires, and strategic partnerships."
+  },
+  "helpText": {
+    "overview": "Our ICP (Ideal Customer Profile) scoring system evaluates companies across five key dimensions to identify the best-fit prospects for Growth Assist's services. Each company receives a total fit score from 0-100, with scores above 70 classified as Target accounts, 50-69 as Watch accounts, and below 50 as Reject.",
+    "whoIsFit": "Companies that are a strong fit typically operate in B2B technology markets, have proven revenue models with recurring revenue, serve enterprise or mid-market customers, demonstrate operational maturity, and show clear growth signals. They have the budget and organizational readiness to invest in growth acceleration services.",
+    "descriptionSignals": "We look for specific language in company descriptions that indicates B2B focus, enterprise sales capability, and scalable business models. Keywords like 'B2B', 'enterprise', 'SaaS', 'recurring revenue', 'platform', and 'API' are positive signals. Conversely, terms like 'B2C', 'consumer', 'retail', and 'direct-to-consumer' are negative signals.",
+    "disqualifiers": "Certain characteristics automatically disqualify companies regardless of other positive signals. These include B2C-only business models, pre-revenue or concept stage companies, traditional non-tech industries, and companies below our minimum revenue threshold of $1M ARR.",
+    "weightingExplanation": "Each scoring category is weighted based on its importance to our ideal customer profile. Industry Fit (25%) is weighted highest as it indicates core market alignment. Description Match (20%), Operational Match (20%), and Commercial Viability (20%) are equally weighted as they represent different aspects of company readiness. Growth Signals (15%) is weighted slightly lower as it indicates trajectory rather than current state.",
+    "scoreRequirements": "Target accounts (70+) demonstrate strong alignment across all categories and are prioritized for immediate outreach. Watch accounts (50-69) show moderate fit and may be good prospects with the right timing or additional qualification. Reject accounts (below 50) do not meet our minimum criteria and should not be pursued."
+  }
+}

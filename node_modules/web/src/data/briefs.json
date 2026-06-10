@@ -1,0 +1,302 @@
+[
+  {
+    "id": "brief-001",
+    "companyName": "Meridian Analytics",
+    "website": "https://meridiananalytics.io",
+    "industry": "SaaS - Data Analytics",
+    "location": "Austin, TX",
+    "score": 87,
+    "decision": "Target",
+    "updatedDate": "2026-04-15",
+    "summary": "B2B data analytics platform serving mid-market enterprises with predictive insights and custom dashboards.",
+    "overview": "Meridian Analytics provides enterprise-grade data analytics solutions with a focus on predictive modeling and real-time insights. Their platform integrates with major CRM and ERP systems, serving clients across finance, healthcare, and retail sectors.",
+    "commercialRelevance": "Strong fit for our ICP with proven B2B SaaS model, recurring revenue, and enterprise client base. Average deal size $47k ARR with 18-month sales cycles.",
+    "qualificationRationale": "Matches our target profile for mid-market B2B SaaS companies with strong product-market fit. Active hiring in sales and customer success indicates growth phase. Recent Series B funding of $23M provides expansion capital.",
+    "outreachAngle": "Lead with our expertise in scaling B2B SaaS sales teams during growth phases. Reference similar analytics platform clients we've helped expand into new verticals.",
+    "riskNotes": "Competitive market with established players. Monitor for any pivot signals or leadership changes.",
+    "contacts": [
+      {
+        "name": "Elena Rodriguez",
+        "title": "VP of Sales",
+        "email": "elena.r@meridiananalytics.io"
+      },
+      {
+        "name": "Marcus Chen",
+        "title": "Chief Revenue Officer",
+        "email": "marcus.c@meridiananalytics.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-002",
+    "companyName": "Cascade Financial",
+    "website": "https://cascadefinancial.com",
+    "industry": "FinTech",
+    "location": "New York, NY",
+    "score": 92,
+    "decision": "Target",
+    "updatedDate": "2026-04-14",
+    "summary": "Enterprise payment processing platform for B2B transactions with embedded finance capabilities.",
+    "overview": "Cascade Financial offers a comprehensive payment infrastructure for B2B companies, handling complex multi-party transactions, automated reconciliation, and embedded lending products. Serving 340+ enterprise clients.",
+    "commercialRelevance": "Exceptional fit with high-value B2B model, strong unit economics, and clear expansion opportunities. Average contract value $120k with 94% retention rate.",
+    "qualificationRationale": "Premium target with proven enterprise sales motion and strong financial metrics. Recent partnership with major ERP providers signals market validation. Leadership team has successful exits.",
+    "outreachAngle": "Position our growth services around their enterprise expansion strategy. Highlight our FinTech vertical expertise and connections to strategic partners.",
+    "riskNotes": "Regulatory compliance requirements may slow decision-making. Ensure we understand their procurement process.",
+    "contacts": [
+      {
+        "name": "Priya Sharma",
+        "title": "Chief Growth Officer",
+        "email": "priya.sharma@cascadefinancial.com"
+      },
+      {
+        "name": "David Kim",
+        "title": "VP of Business Development",
+        "email": "david.kim@cascadefinancial.com"
+      }
+    ]
+  },
+  {
+    "id": "brief-003",
+    "companyName": "HealthBridge Systems",
+    "website": "https://healthbridge.io",
+    "industry": "Healthcare Tech",
+    "location": "Boston, MA",
+    "score": 78,
+    "decision": "Target",
+    "updatedDate": "2026-04-13",
+    "summary": "Healthcare interoperability platform connecting hospitals, clinics, and insurance providers.",
+    "overview": "HealthBridge Systems provides HIPAA-compliant data exchange infrastructure for healthcare organizations. Their platform enables seamless patient data sharing across disparate systems, serving 180+ healthcare networks.",
+    "commercialRelevance": "Solid B2B healthcare model with recurring revenue and strong retention. Average deal size $65k with multi-year contracts typical.",
+    "qualificationRationale": "Meets our healthcare vertical criteria with proven enterprise sales capability. Recent HITRUST certification and SOC 2 compliance demonstrate operational maturity.",
+    "outreachAngle": "Lead with our healthcare vertical expertise and understanding of complex sales cycles. Reference similar interoperability platform clients.",
+    "riskNotes": "Long sales cycles (24+ months) and complex stakeholder management. Budget cycles tied to fiscal year planning.",
+    "contacts": [
+      {
+        "name": "Dr. Sarah Mitchell",
+        "title": "VP of Strategic Partnerships",
+        "email": "sarah.mitchell@healthbridge.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-004",
+    "companyName": "Quantum Logistics",
+    "website": "https://quantumlogistics.com",
+    "industry": "Supply Chain Tech",
+    "location": "Chicago, IL",
+    "score": 83,
+    "decision": "Target",
+    "updatedDate": "2026-04-12",
+    "summary": "AI-powered supply chain optimization platform for enterprise manufacturers and distributors.",
+    "overview": "Quantum Logistics delivers predictive supply chain analytics and optimization tools for complex manufacturing operations. Their platform reduces inventory costs by an average of 23% while improving delivery reliability.",
+    "commercialRelevance": "Strong B2B SaaS model with enterprise focus and measurable ROI. Average contract value $89k with expansion revenue from additional modules.",
+    "qualificationRationale": "Excellent fit with proven enterprise sales motion and clear value proposition. Recent expansion into automotive and aerospace verticals shows growth trajectory.",
+    "outreachAngle": "Position our services around their vertical expansion strategy. Highlight our manufacturing sector expertise and go-to-market acceleration capabilities.",
+    "riskNotes": "Implementation complexity may extend sales cycles. Ensure we understand their customer success model.",
+    "contacts": [
+      {
+        "name": "James Patterson",
+        "title": "Chief Commercial Officer",
+        "email": "james.patterson@quantumlogistics.com"
+      },
+      {
+        "name": "Aisha Okafor",
+        "title": "VP of Sales",
+        "email": "aisha.okafor@quantumlogistics.com"
+      }
+    ]
+  },
+  {
+    "id": "brief-005",
+    "companyName": "Vertex Commerce",
+    "website": "https://vertexcommerce.io",
+    "industry": "E-commerce Platform",
+    "location": "San Francisco, CA",
+    "score": 74,
+    "decision": "Target",
+    "updatedDate": "2026-04-11",
+    "summary": "Headless commerce platform for B2B wholesale and distribution companies.",
+    "overview": "Vertex Commerce provides a modern commerce infrastructure for B2B companies transitioning from legacy systems. Their platform supports complex pricing, bulk ordering, and custom workflows for wholesale operations.",
+    "commercialRelevance": "Good fit with B2B focus and recurring revenue model. Average deal size $52k with strong expansion potential as clients add features.",
+    "qualificationRationale": "Meets our B2B commerce criteria with proven market traction. Recent customer wins in manufacturing and distribution sectors align with our target verticals.",
+    "outreachAngle": "Lead with our B2B commerce expertise and understanding of wholesale/distribution sales cycles. Reference similar platform clients we've helped scale.",
+    "riskNotes": "Competitive market with established players. Monitor for differentiation and market positioning.",
+    "contacts": [
+      {
+        "name": "Lucia Torres",
+        "title": "VP of Partnerships",
+        "email": "lucia.torres@vertexcommerce.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-006",
+    "companyName": "Apex Manufacturing",
+    "website": "https://apexmfg.com",
+    "industry": "Manufacturing",
+    "location": "Detroit, MI",
+    "score": 58,
+    "decision": "Watch",
+    "updatedDate": "2026-04-10",
+    "summary": "Traditional manufacturing company with recent digital transformation initiatives.",
+    "overview": "Apex Manufacturing is a 40-year-old precision parts manufacturer serving automotive and aerospace industries. Recently launched digital sales portal and exploring B2B e-commerce capabilities.",
+    "commercialRelevance": "Moderate fit - traditional business model but showing digital transformation signals. Revenue model primarily transactional with some recurring maintenance contracts.",
+    "qualificationRationale": "Watch status due to early-stage digital transformation. Strong fundamentals but unclear commitment to B2B SaaS model. Monitor for increased digital investment.",
+    "outreachAngle": "If pursuing, position as digital transformation partner. Focus on manufacturing vertical expertise and understanding of traditional-to-digital transitions.",
+    "riskNotes": "May lack budget for growth services during transformation phase. Decision-making may be slow due to traditional organizational structure.",
+    "contacts": [
+      {
+        "name": "Robert Chen",
+        "title": "Director of Digital Strategy",
+        "email": "robert.chen@apexmfg.com"
+      }
+    ]
+  },
+  {
+    "id": "brief-007",
+    "companyName": "CloudSync Solutions",
+    "website": "https://cloudsync.io",
+    "industry": "SaaS - Integration",
+    "location": "Seattle, WA",
+    "score": 89,
+    "decision": "Target",
+    "updatedDate": "2026-04-09",
+    "summary": "Enterprise integration platform connecting business applications with automated workflows.",
+    "overview": "CloudSync Solutions provides iPaaS (Integration Platform as a Service) for enterprise companies, enabling seamless data flow between CRM, ERP, marketing automation, and custom applications. Serving 420+ enterprise clients.",
+    "commercialRelevance": "Excellent fit with strong B2B SaaS model, high retention (96%), and clear expansion revenue from additional connectors. Average deal size $78k ARR.",
+    "qualificationRationale": "Premium target with proven enterprise sales motion and strong product-market fit. Recent Series C funding of $45M provides growth capital. Active expansion into European markets.",
+    "outreachAngle": "Lead with our iPaaS vertical expertise and international expansion experience. Reference similar integration platform clients we've helped scale globally.",
+    "riskNotes": "Competitive market with well-funded competitors. Ensure we understand their differentiation strategy.",
+    "contacts": [
+      {
+        "name": "Kwame Asante",
+        "title": "Chief Revenue Officer",
+        "email": "kwame.asante@cloudsync.io"
+      },
+      {
+        "name": "Nina Bergström",
+        "title": "VP of International Sales",
+        "email": "nina.bergstrom@cloudsync.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-008",
+    "companyName": "Retail Dynamics",
+    "website": "https://retaildynamics.com",
+    "industry": "Retail",
+    "location": "Los Angeles, CA",
+    "score": 43,
+    "decision": "Reject",
+    "updatedDate": "2026-04-08",
+    "summary": "B2C retail chain with limited B2B operations.",
+    "overview": "Retail Dynamics operates 120+ consumer retail locations across the western United States. Primary focus on direct-to-consumer sales with minimal B2B wholesale operations.",
+    "commercialRelevance": "Poor fit - primarily B2C model with limited B2B revenue. Does not match our ICP criteria for B2B-focused companies.",
+    "qualificationRationale": "Reject due to B2C focus. While they have some wholesale operations, it represents less than 8% of revenue and is not a strategic priority.",
+    "outreachAngle": "Not recommended for outreach. Does not meet minimum B2B revenue threshold.",
+    "riskNotes": "B2C focus means different buying behaviors and decision-making processes than our typical clients.",
+    "contacts": []
+  },
+  {
+    "id": "brief-009",
+    "companyName": "SecureVault Technologies",
+    "website": "https://securevault.io",
+    "industry": "Cybersecurity",
+    "location": "Washington, DC",
+    "score": 85,
+    "decision": "Target",
+    "updatedDate": "2026-04-07",
+    "summary": "Enterprise cybersecurity platform specializing in data encryption and access management.",
+    "overview": "SecureVault Technologies provides zero-trust security infrastructure for enterprise organizations, with focus on data encryption, identity management, and compliance automation. Serving 280+ enterprise clients including Fortune 500 companies.",
+    "commercialRelevance": "Strong fit with enterprise B2B model, high contract values ($95k average), and excellent retention (97%). Clear expansion opportunities through additional security modules.",
+    "qualificationRationale": "Excellent target with proven enterprise sales capability and strong market position. Recent FedRAMP authorization opens government sector opportunities. Leadership team has deep cybersecurity expertise.",
+    "outreachAngle": "Position our services around their government sector expansion and enterprise growth strategy. Highlight our cybersecurity vertical expertise and understanding of compliance-driven sales.",
+    "riskNotes": "Long sales cycles (18-24 months) due to security evaluation requirements. Budget cycles may be tied to fiscal year planning.",
+    "contacts": [
+      {
+        "name": "Michael Torres",
+        "title": "VP of Enterprise Sales",
+        "email": "michael.torres@securevault.io"
+      },
+      {
+        "name": "Dr. Yuki Tanaka",
+        "title": "Chief Security Officer",
+        "email": "yuki.tanaka@securevault.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-010",
+    "companyName": "Horizon HR Systems",
+    "website": "https://horizonhr.io",
+    "industry": "HR Tech",
+    "location": "Denver, CO",
+    "score": 76,
+    "decision": "Target",
+    "updatedDate": "2026-04-06",
+    "summary": "Cloud-based HR management platform for mid-market companies with 200-2000 employees.",
+    "overview": "Horizon HR Systems delivers comprehensive HR software including payroll, benefits administration, performance management, and compliance tracking. Serving 540+ mid-market companies across various industries.",
+    "commercialRelevance": "Good fit with B2B SaaS model and strong mid-market focus. Average deal size $58k with high retention (93%) and predictable expansion revenue.",
+    "qualificationRationale": "Solid target with proven mid-market sales motion and clear value proposition. Recent product launches in talent analytics and employee engagement show innovation focus.",
+    "outreachAngle": "Lead with our HR tech vertical expertise and mid-market sales acceleration capabilities. Reference similar HRIS platform clients we've helped scale.",
+    "riskNotes": "Competitive market with established players. Monitor for differentiation and market positioning.",
+    "contacts": [
+      {
+        "name": "Amanda Foster",
+        "title": "VP of Sales",
+        "email": "amanda.foster@horizonhr.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-011",
+    "companyName": "DataFlow Analytics",
+    "website": "https://dataflow.io",
+    "industry": "SaaS - Business Intelligence",
+    "location": "Atlanta, GA",
+    "score": 81,
+    "decision": "Target",
+    "updatedDate": "2026-04-05",
+    "summary": "Self-service business intelligence platform for non-technical business users.",
+    "overview": "DataFlow Analytics provides intuitive BI tools that enable business users to create reports and dashboards without SQL knowledge. Their platform integrates with major data warehouses and supports collaborative analytics.",
+    "commercialRelevance": "Strong fit with B2B SaaS model, land-and-expand strategy, and high user engagement. Average deal size $62k with strong expansion from additional seats and features.",
+    "qualificationRationale": "Excellent target with proven product-led growth motion and strong market traction. Recent customer wins in financial services and healthcare demonstrate vertical expansion.",
+    "outreachAngle": "Position our services around their vertical expansion strategy and enterprise sales development. Highlight our BI/analytics vertical expertise.",
+    "riskNotes": "Product-led growth model may require different sales approach. Ensure we understand their enterprise sales motion.",
+    "contacts": [
+      {
+        "name": "Raj Patel",
+        "title": "Chief Revenue Officer",
+        "email": "raj.patel@dataflow.io"
+      },
+      {
+        "name": "Sophie Laurent",
+        "title": "VP of Enterprise Sales",
+        "email": "sophie.laurent@dataflow.io"
+      }
+    ]
+  },
+  {
+    "id": "brief-012",
+    "companyName": "GreenTech Solutions",
+    "website": "https://greentech-sol.com",
+    "industry": "Sustainability Tech",
+    "location": "Portland, OR",
+    "score": 64,
+    "decision": "Watch",
+    "updatedDate": "2026-04-04",
+    "summary": "Carbon tracking and sustainability reporting platform for enterprise companies.",
+    "overview": "GreenTech Solutions provides carbon accounting and ESG reporting tools for large enterprises. Their platform automates data collection, calculates carbon footprints, and generates compliance reports.",
+    "commercialRelevance": "Moderate fit - emerging market with growing demand but uncertain budget priorities. Average deal size $48k with variable sales cycles.",
+    "qualificationRationale": "Watch status due to market maturity and budget uncertainty. Strong product but ESG spending may be discretionary. Monitor for increased market adoption and budget allocation.",
+    "outreachAngle": "If pursuing, position as growth partner for emerging sustainability tech market. Focus on our experience with early-stage market development.",
+    "riskNotes": "Market adoption dependent on regulatory requirements and corporate ESG commitments. Budget may be cut during economic uncertainty.",
+    "contacts": [
+      {
+        "name": "Maya Chen",
+        "title": "VP of Business Development",
+        "email": "maya.chen@greentech-sol.com"
+      }
+    ]
+  }
+]
