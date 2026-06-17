@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
 import { useSearchParams } from 'react-router-dom';
@@ -195,7 +196,7 @@ const BriefsPage = () => {
   const [dateRange, setDateRange] = useState({ from: undefined, to: undefined });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
-  const [sortField, setSortField] = useState('fit_score');
+  const [sortField, setSortField] = useState('latest_logged_at');
   const [sortDirection, setSortDirection] = useState('desc');
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -437,6 +438,11 @@ const BriefsPage = () => {
         } else if (assignmentFilter === 'team_queue') {
           if (!item.assignment_assigned_to) return false;
         }
+      }
+
+      // Hide closed briefs by default unless explicitly filtering for them
+      if (item.assignment_status === 'closed' && assignmentStatusFilter !== 'closed') {
+        return false;
       }
 
       // Assignment Status filtering
