@@ -7,3 +7,9 @@ app.tar.gz
 *.db-wal
 .env
 .env.local
+node_modules/
+app.tar.gz
+*.db-shm
+*.db-wal
+.env
+.env.local
