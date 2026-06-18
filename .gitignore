@@ -1,3 +1,9 @@
 app.tar.gz
 *.db-shm
 *.db-wal
+node_modules/
+app.tar.gz
+*.db-shm
+*.db-wal
+.env
+.env.local
