@@ -59,6 +59,7 @@ const BriefDetailPage = () => {
   const [targetData, setTargetData] = useState(null);
   const [parsedBrief, setParsedBrief] = useState(null);
   const [error, setError] = useState(null);
+  const [assignmentRefreshKey, setAssignmentRefreshKey] = useState(0);
 
   useEffect(() => {
     // Wait for auth to finish loading before attempting to fetch
@@ -541,6 +542,7 @@ const BriefDetailPage = () => {
           {/* Sidebar / Auxiliary Column */}
           <div className="space-y-6">
             <BriefAssignmentCard
+              key={`assignment-${assignmentRefreshKey}`}
               clientId={clientId}
               companyId={company_id}
               finalBriefRunId={final_brief_run_id}
@@ -578,6 +580,7 @@ const BriefDetailPage = () => {
               companyId={company_id} 
               finalBriefRunId={final_brief_run_id} 
               hasFinalizedBrief={has_finalized_brief} 
+              onAssignmentUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
             />
           </div>
         </div>

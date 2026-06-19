@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ThumbsUp, ThumbsDown, Minus, Loader2, AlertCircle, CheckCircle2, Send, Calendar, User } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Minus, Loader2, AlertCircle, CheckCircle2, Send, Calendar, User, MessageSquarePlus, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import supabaseDataService from '@/services/supabaseDataService.js';
 import { cn } from '@/lib/utils.js';
@@ -19,10 +19,34 @@ const QUICK_REASON_OPTIONS = [
   { value: "other", label: "Other" }
 ];
 
-const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedBrief }) => {
+const formatNoteDateTime = (value) => {
+  if (!value) {
+    return { date: 'Unknown date', time: 'Unknown time' };
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { date: 'Unknown date', time: 'Unknown time' };
+  }
+
+  return {
+    date: new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(date),
+    time: new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date)
+  };
+};
+
+const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedBrief, onAssignmentUpdated }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [feedbackError, setFeedbackError] = useState(null);
   const [feedbackSaved, setFeedbackSaved] = useState(false);
   
@@ -30,20 +54,19 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
   const [quickReason, setQuickReason] = useState("");
   const [contacted, setContacted] = useState(false);
   const [meetingBooked, setMeetingBooked] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [newNote, setNewNote] = useState("");
+  const [briefNotes, setBriefNotes] = useState([]);
   const [enrichedData, setEnrichedData] = useState(null);
 
   const [initialData, setInitialData] = useState({
     verdict: null,
     quickReason: "",
     contacted: false,
-    meetingBooked: false,
-    notes: ""
+    meetingBooked: false
   });
 
   const isDirty = 
     quickReason !== initialData.quickReason || 
-    notes !== initialData.notes || 
     (verdict !== initialData.verdict && verdict !== null) ||
     contacted !== initialData.contacted ||
     meetingBooked !== initialData.meetingBooked;
@@ -55,37 +78,38 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
     }
 
     try {
-      const record = await supabaseDataService.fetchBriefFeedback(clientId, companyId, finalBriefRunId);
+      const [record, notesRecords] = await Promise.all([
+        supabaseDataService.fetchBriefFeedback(clientId, companyId, finalBriefRunId),
+        supabaseDataService.fetchBriefNotes(clientId, companyId, finalBriefRunId)
+      ]);
+
+      setBriefNotes(notesRecords);
 
       if (record) {
         setVerdict(record.brief_verdict || null);
         setQuickReason(record.quick_reason || "");
         setContacted(record.contacted === true);
         setMeetingBooked(record.meeting_booked === true);
-        setNotes(record.notes || "");
         setEnrichedData(record);
         
         setInitialData({
           verdict: record.brief_verdict || null,
           quickReason: record.quick_reason || "",
           contacted: record.contacted === true,
-          meetingBooked: record.meeting_booked === true,
-          notes: record.notes || ""
+          meetingBooked: record.meeting_booked === true
         });
       } else {
         setVerdict(null);
         setQuickReason("");
         setContacted(false);
         setMeetingBooked(false);
-        setNotes("");
         setEnrichedData(null);
         
         setInitialData({
           verdict: null,
           quickReason: "",
           contacted: false,
-          meetingBooked: false,
-          notes: ""
+          meetingBooked: false
         });
       }
     } catch (err) {
@@ -100,15 +124,14 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
       setQuickReason("");
       setContacted(false);
       setMeetingBooked(false);
-      setNotes("");
+      setBriefNotes([]);
       setEnrichedData(null);
       
       setInitialData({
         verdict: null,
         quickReason: "",
         contacted: false,
-        meetingBooked: false,
-        notes: ""
+        meetingBooked: false
       });
     } finally {
       setLoading(false);
@@ -123,8 +146,7 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
     currentVerdict, 
     currentQuickReason, 
     currentContacted, 
-    currentMeetingBooked, 
-    currentNotes
+    currentMeetingBooked
   ) => {
     if (!clientId || !companyId || !finalBriefRunId) return;
 
@@ -153,11 +175,27 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         brief_verdict: currentVerdict,
         quick_reason: currentQuickReason || null,
         contacted: currentContacted === true,
-        meeting_booked: currentMeetingBooked === true,
-        notes: currentNotes?.trim() || null
+        meeting_booked: currentMeetingBooked === true
       };
 
       await supabaseDataService.saveBriefFeedback(payload);
+
+      let assignmentClosed = false;
+      let assignmentCloseError = null;
+      if (currentVerdict === 'bad') {
+        try {
+          await supabaseDataService.closeBriefAssignmentForFeedback({
+            clientId,
+            companyId,
+            finalBriefRunId
+          });
+          assignmentClosed = true;
+          onAssignmentUpdated?.();
+        } catch (err) {
+          assignmentCloseError = err;
+          console.error('Error closing assignment after bad feedback:', err);
+        }
+      }
 
       setFeedbackError(null);
       setFeedbackSaved(true);
@@ -166,13 +204,17 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         verdict: currentVerdict,
         quickReason: currentQuickReason || "",
         contacted: currentContacted === true,
-        meetingBooked: currentMeetingBooked === true,
-        notes: currentNotes || ""
+        meetingBooked: currentMeetingBooked === true
       });
 
       toast({
         title: "Feedback saved",
-        description: "Thank you for your feedback.",
+        description: assignmentClosed
+          ? "Feedback saved and assignment moved to closed."
+          : assignmentCloseError
+            ? "Feedback saved, but the assignment could not be moved to closed."
+            : "Thank you for your feedback.",
+        variant: assignmentCloseError ? "destructive" : undefined,
       });
       
       // Refetch to get updated creator/editor info
@@ -194,11 +236,44 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
 
   const onVerdictClick = (newVerdict) => {
     setVerdict(newVerdict);
-    handleSave(newVerdict, quickReason, contacted, meetingBooked, notes);
+    handleSave(newVerdict, quickReason, contacted, meetingBooked);
   };
 
   const onManualSave = () => {
-    handleSave(verdict, quickReason, contacted, meetingBooked, notes);
+    handleSave(verdict, quickReason, contacted, meetingBooked);
+  };
+
+  const onSaveNote = async () => {
+    const noteText = newNote.trim();
+    if (!noteText || !clientId || !companyId || !finalBriefRunId) return;
+
+    setSavingNote(true);
+    try {
+      await supabaseDataService.createBriefNote({
+        client_id: clientId,
+        company_id: companyId,
+        run_id: finalBriefRunId,
+        note_text: noteText
+      });
+
+      setNewNote("");
+      const notesRecords = await supabaseDataService.fetchBriefNotes(clientId, companyId, finalBriefRunId);
+      setBriefNotes(notesRecords);
+
+      toast({
+        title: "Note added",
+        description: "The activity note has been saved.",
+      });
+    } catch (err) {
+      console.error('Error saving brief note:', err);
+      toast({
+        variant: "destructive",
+        title: "Failed to save note",
+        description: err.message || "An unexpected error occurred. Please try again."
+      });
+    } finally {
+      setSavingNote(false);
+    }
   };
 
   if (!finalBriefRunId || !hasFinalizedBrief) {
@@ -369,17 +444,85 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Notes
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm font-medium leading-none">
+                Previous notes
+              </label>
+              <span className="text-xs text-muted-foreground">
+                {briefNotes.length} {briefNotes.length === 1 ? 'note' : 'notes'}
+              </span>
+            </div>
+
+            {briefNotes.length > 0 ? (
+              <div className="max-h-80 overflow-y-auto rounded-md border border-border/60 bg-muted/10">
+                <div className="divide-y divide-border/60">
+                  {briefNotes.map((note) => {
+                    const { date, time } = formatNoteDateTime(note.created_at);
+                    const author = note.created_by_display_name || note.created_by_email || "Unknown user";
+
+                    return (
+                      <div key={note.id || `${note.created_at}-${note.note_text}`} className="p-3 space-y-2">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                            <User className="h-3.5 w-3.5" />
+                            {author}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {date}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            {time}
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                          {note.note_text}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground">
+                No notes yet.
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium leading-none">
+              Add note
             </label>
-            <Textarea 
-              placeholder="Add any additional context..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              disabled={saving}
+            <Textarea
+              placeholder="Add a dated activity note..."
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              disabled={savingNote}
               className="resize-none"
-              rows={3}
+              rows={4}
             />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onSaveNote}
+                disabled={savingNote || !newNote.trim()}
+              >
+                {savingNote ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving note...
+                  </>
+                ) : (
+                  <>
+                    <MessageSquarePlus className="h-4 w-4 mr-2" />
+                    Add note
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-3">

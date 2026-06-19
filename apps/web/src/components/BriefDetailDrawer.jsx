@@ -56,6 +56,11 @@ const BriefDetailDrawer = ({
   const [error, setError] = useState(null);
   const [targetData, setTargetData] = useState(null);
   const [parsedBrief, setParsedBrief] = useState(null);
+  const [assignmentRefreshKey, setAssignmentRefreshKey] = useState(0);
+
+  useEffect(() => {
+    setAssignmentRefreshKey(0);
+  }, [clientId, companyId]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -386,6 +391,7 @@ const BriefDetailDrawer = ({
               {/* Assignment & Feedback Section */}
               <div className="space-y-6 mt-8">
                 <BriefAssignmentCard
+                  key={`assignment-${assignmentRefreshKey}`}
                   clientId={clientId}
                   companyId={companyId}
                   finalBriefRunId={targetData?.final_brief_run_id}
@@ -398,6 +404,7 @@ const BriefDetailDrawer = ({
                   companyId={companyId} 
                   finalBriefRunId={targetData?.final_brief_run_id} 
                   hasFinalizedBrief={targetData?.has_finalized_brief} 
+                  onAssignmentUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
                 />
               </div>
             </div>

@@ -25,6 +25,13 @@ const getConfidenceColor = (confidence) => {
   return 'bg-secondary text-secondary-foreground';
 };
 
+const ROUTE_LABELS = {
+  primary_buyer: 'Primary buyer',
+  likely_influencer: 'Likely influencer',
+  likely_blocker: 'Likely blocker',
+  fallback_route: 'Fallback route'
+};
+
 const extractDomain = (url) => {
   try {
     const domain = new URL(url).hostname;
@@ -32,6 +39,88 @@ const extractDomain = (url) => {
   } catch (e) {
     return url;
   }
+};
+
+const normalizeIdentity = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/\s+/g, ' ');
+
+const normalizeLinkedIn = (value) => normalizeIdentity(value)
+  .replace(/^https?:\/\//, '')
+  .replace(/^www\./, '')
+  .replace(/\/+$/, '');
+
+const getContactName = (contact) => contact?.name || contact?.full_name || contact?.person_name || '';
+
+const getContactRole = (contact) => contact?.role || contact?.title || contact?.job_title || '';
+
+const getContactEmail = (contact) => contact?.email || contact?.email_address || contact?.contact_email || '';
+
+const getContactLinkedIn = (contact) => contact?.linkedin || contact?.linkedin_url || contact?.linkedin_profile || '';
+
+const buildRouteMatchKeys = (route) => {
+  const name = normalizeIdentity(route?.name);
+  if (!name) return [];
+
+  const keys = [];
+  const email = normalizeIdentity(route?.email || route?.email_address || route?.contact_email);
+  if (email) keys.push(`email:${email}`);
+
+  const linkedin = normalizeLinkedIn(route?.linkedin || route?.linkedin_url || route?.linkedin_profile);
+  if (linkedin) keys.push(`linkedin:${linkedin}`);
+
+  const role = normalizeIdentity(route?.role || route?.title || route?.job_title);
+  if (role) keys.push(`name_role:${name}:${role}`);
+
+  return keys;
+};
+
+const buildContactMatchKeys = (contact) => {
+  const keys = [];
+  const name = normalizeIdentity(getContactName(contact));
+  if (!name) return keys;
+
+  const email = normalizeIdentity(getContactEmail(contact));
+  if (email) keys.push(`email:${email}`);
+
+  const linkedin = normalizeLinkedIn(getContactLinkedIn(contact));
+  if (linkedin) keys.push(`linkedin:${linkedin}`);
+
+  const role = normalizeIdentity(getContactRole(contact));
+  if (role) keys.push(`name_role:${name}:${role}`);
+
+  return keys;
+};
+
+const buildContactRouteLabels = (contacts, whoToContact) => {
+  const labelsByContactIndex = new Map();
+  const contactIndexByKey = new Map();
+
+  contacts.forEach((contact, index) => {
+    buildContactMatchKeys(contact).forEach((key) => {
+      if (!contactIndexByKey.has(key)) {
+        contactIndexByKey.set(key, index);
+      }
+    });
+  });
+
+  Object.entries(ROUTE_LABELS).forEach(([routeKey, label]) => {
+    const matchKeys = buildRouteMatchKeys(whoToContact?.[routeKey]);
+    if (matchKeys.length === 0) return;
+
+    const contactIndex = matchKeys
+      .map((matchKey) => contactIndexByKey.get(matchKey))
+      .find((index) => index !== undefined);
+    if (contactIndex === undefined) return;
+
+    const existing = labelsByContactIndex.get(contactIndex) || [];
+    if (!existing.includes(label)) {
+      labelsByContactIndex.set(contactIndex, [...existing, label]);
+    }
+  });
+
+  return labelsByContactIndex;
 };
 
 const BulletList = ({ items }) => {
@@ -66,21 +155,34 @@ const MiniTile = ({ label, value, isBadge }) => (
   </div>
 );
 
-const ContactCard = ({ contact }) => {
+const ContactCard = ({ contact, routeLabels = [] }) => {
   if (!contact) return null;
-  const name = contact.name || 'Unknown Contact';
-  const role = contact.role || contact.title || 'Unknown Role';
+  const name = getContactName(contact) || 'Unknown Contact';
+  const role = getContactRole(contact) || 'Unknown Role';
   const phone = contact.telephone || contact.phone || '—';
-  const email = contact.email || '—';
-  const linkedin = contact.linkedin || contact.linkedin_url || '—';
+  const email = getContactEmail(contact) || '—';
+  const linkedin = getContactLinkedIn(contact) || '—';
 
   return (
     <Card className="bg-card shadow-sm border-border">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="font-semibold">{name}</p>
             <p className="text-sm text-muted-foreground">{role}</p>
+            {routeLabels.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {routeLabels.map((label) => (
+                  <Badge
+                    key={label}
+                    variant="outline"
+                    className="px-2 py-0 text-[11px] font-medium bg-muted/30 text-muted-foreground border-border/70"
+                  >
+                    {label}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
           {contact.confidence && (
             <Badge variant="outline" className={cn("text-xs font-medium", getConfidenceColor(contact.confidence))}>
@@ -334,6 +436,7 @@ const FinalBriefRenderer = ({ briefData }) => {
     : (Array.isArray(researchAppendix.contacts) ? researchAppendix.contacts : []);
   
   const contactMatchNote = researchAppendix.contacts?.contact_match_note;
+  const routeLabelsByContactIndex = buildContactRouteLabels(contacts, salesBrief.who_to_contact || {});
 
   // Extract company name from briefData or data
   const companyName = briefData.company_name || data.company_name || 'Company Brief';
@@ -370,14 +473,14 @@ const FinalBriefRenderer = ({ briefData }) => {
         {contacts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {contacts.map((contact, i) => (
-              <ContactCard key={i} contact={contact} />
+              <ContactCard key={i} contact={contact} routeLabels={routeLabelsByContactIndex.get(i) || []} />
             ))}
           </div>
         ) : (
           <Card className="border-dashed bg-muted/20">
             <CardContent className="p-6 text-center text-muted-foreground">
               <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No named contacts were captured yet.</p>
+              <p>No named contacts were captured yet. Use the ICP-aligned target titles as the recommended starting point.</p>
             </CardContent>
           </Card>
         )}

@@ -445,6 +445,69 @@ class SupabaseDataService {
     }
   }
 
+  async fetchBriefNotes(clientId, companyId, finalBriefRunId) {
+    if (!clientId || !companyId || !finalBriefRunId) return [];
+    try {
+      const { data, error } = await supabase
+        .from('portal_brief_notes_enriched')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('company_id', companyId)
+        .eq('run_id', finalBriefRunId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Supabase query error in fetchBriefNotes:', {
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching brief notes:', error);
+      return [];
+    }
+  }
+
+  async createBriefNote(payload) {
+    try {
+      const { client_id, company_id, run_id, note_text } = payload;
+      const trimmedNote = note_text?.trim();
+
+      if (!trimmedNote) {
+        throw new Error('Note text is required.');
+      }
+
+      const { data, error } = await supabase
+        .from('portal_brief_notes')
+        .insert({
+          client_id,
+          company_id,
+          run_id,
+          note_text: trimmedNote
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase query error in createBriefNote:', {
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error creating brief note:', error);
+      throw error;
+    }
+  }
+
   async saveBriefFeedback(payload) {
     try {
       const { client_id, finalBriefRunId, company_id, ...feedbackData } = payload;
@@ -619,6 +682,56 @@ class SupabaseDataService {
       return data;
     } catch (error) {
       console.error('Error updating brief assignment status:', error);
+      throw error;
+    }
+  }
+
+  async closeBriefAssignmentForFeedback({ clientId, companyId, finalBriefRunId }) {
+    try {
+      const { data: updatedRows, error: updateError } = await supabase
+        .from('portal_brief_assignments')
+        .update({ status: 'closed' })
+        .eq('client_id', clientId)
+        .eq('run_id', finalBriefRunId)
+        .eq('company_id', companyId)
+        .select();
+
+      if (updateError) {
+        console.error('Supabase query error in closeBriefAssignmentForFeedback update:', {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details
+        });
+        throw updateError;
+      }
+
+      if (updatedRows?.length > 0) {
+        return updatedRows[0];
+      }
+
+      const { data: insertedRow, error: insertError } = await supabase
+        .from('portal_brief_assignments')
+        .insert({
+          client_id: clientId,
+          run_id: finalBriefRunId,
+          company_id: companyId,
+          status: 'closed'
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Supabase query error in closeBriefAssignmentForFeedback insert:', {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details
+        });
+        throw insertError;
+      }
+
+      return insertedRow;
+    } catch (error) {
+      console.error('Error closing brief assignment for feedback:', error);
       throw error;
     }
   }
