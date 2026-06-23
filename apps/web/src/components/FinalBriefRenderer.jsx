@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   AlertTriangle, 
   XCircle, 
@@ -12,7 +16,8 @@ import {
   Info,
   ExternalLink,
   Calendar,
-  Home
+  Home,
+  Copy
 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { renderEmailAsLink } from '@/utils/emailRenderer.js';
@@ -31,6 +36,8 @@ const ROUTE_LABELS = {
   likely_blocker: 'Likely blocker',
   fallback_route: 'Fallback route'
 };
+
+const LINKEDIN_MESSAGE_LIMIT = 200;
 
 const extractDomain = (url) => {
   try {
@@ -58,6 +65,185 @@ const getContactRole = (contact) => contact?.role || contact?.title || contact?.
 const getContactEmail = (contact) => contact?.email || contact?.email_address || contact?.contact_email || '';
 
 const getContactLinkedIn = (contact) => contact?.linkedin || contact?.linkedin_url || contact?.linkedin_profile || '';
+
+const getFirstName = (name) => {
+  const trimmed = String(name || '').trim();
+  if (!trimmed || trimmed.toLowerCase() === 'unknown contact') return '';
+  return trimmed.split(/\s+/)[0];
+};
+
+const sentenceCase = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.charAt(0).toLowerCase() + text.slice(1);
+};
+
+const cleanInlineText = (value) => String(value || '')
+  .replace(/\s+/g, ' ')
+  .replace(/[.!?]+$/g, '')
+  .trim();
+
+const stringifyBriefValue = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map(stringifyBriefValue).filter(Boolean).join(' ');
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).map(stringifyBriefValue).filter(Boolean).join(' ');
+  }
+  return '';
+};
+
+const getBriefFieldText = (value) => {
+  if (!value) return '';
+  if (Array.isArray(value)) {
+    return value.map(stringifyBriefValue).find(Boolean) || '';
+  }
+  return stringifyBriefValue(value);
+};
+
+const findTalkTrackField = (talkTrack, keys, labels = []) => {
+  if (!talkTrack) return '';
+
+  const normalizedKeys = keys.map((key) => key.toLowerCase());
+  const normalizedLabels = labels.map((label) => label.toLowerCase());
+
+  if (Array.isArray(talkTrack)) {
+    for (const item of talkTrack) {
+      const fromItem = findTalkTrackField(item, keys, labels);
+      if (fromItem) return fromItem;
+    }
+    return '';
+  }
+
+  if (typeof talkTrack === 'object') {
+    for (const [key, value] of Object.entries(talkTrack)) {
+      const normalizedKey = key.toLowerCase().replace(/[\s-]+/g, '_');
+      if (normalizedKeys.includes(normalizedKey)) {
+        return stringifyBriefValue(value);
+      }
+    }
+    return '';
+  }
+
+  const text = String(talkTrack || '');
+  const lines = text.split(/\r?\n|;/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase();
+    const matchingLabel = normalizedLabels.find((label) => lowerLine.startsWith(label));
+    if (matchingLabel) {
+      return line.slice(matchingLabel.length).replace(/^[:\s-]+/, '').trim();
+    }
+  }
+
+  return '';
+};
+
+const buildBriefEmailDraft = ({ companyName, contact, salesBrief }) => {
+  const talkTrack = salesBrief?.recommended_angle_talk_track;
+  const primaryAngle = findTalkTrackField(
+    talkTrack,
+    ['primary_angle', 'primary'],
+    ['primary angle', 'primary']
+  );
+  const valueFraming = findTalkTrackField(
+    talkTrack,
+    ['value_framing', 'value'],
+    ['value framing', 'value']
+  );
+  const discoveryHook = findTalkTrackField(
+    talkTrack,
+    ['discovery_hook', 'hook'],
+    ['discovery hook', 'hook']
+  );
+  const firstTalkTrackText = getBriefFieldText(talkTrack);
+  const whyNow = getBriefFieldText(salesBrief?.why_now);
+  const discoveryQuestion = getBriefFieldText(salesBrief?.discovery_questions);
+  const discoveryContext = discoveryHook || whyNow || discoveryQuestion;
+  const angleContext = primaryAngle || valueFraming || firstTalkTrackText;
+
+  if (!discoveryContext && !angleContext) return null;
+
+  const safeCompanyName = companyName || 'your business';
+  const firstName = getFirstName(getContactName(contact));
+  const salutation = firstName ? `Hi ${firstName},` : 'Hi,';
+
+  return {
+    to: getContactEmail(contact),
+    subject: `Quick question for ${safeCompanyName}`,
+    body: [
+      salutation,
+      '',
+      discoveryContext ? `I noticed ${sentenceCase(discoveryContext)}.` : null,
+      '',
+      angleContext ? `The reason I’m reaching out is ${sentenceCase(angleContext)}.` : null,
+      '',
+      `Would it be worth a quick conversation to see whether this is relevant for ${safeCompanyName}?`,
+      '',
+      'Best,'
+    ].filter((line) => line !== null).join('\n')
+  };
+};
+
+const trimToLimit = (value, limit) => {
+  const text = cleanInlineText(value);
+  if (text.length <= limit) return text;
+
+  const truncated = text.slice(0, limit - 1).trimEnd();
+  const lastSpace = truncated.lastIndexOf(' ');
+  const safeTruncated = lastSpace > limit * 0.6 ? truncated.slice(0, lastSpace) : truncated;
+  return `${safeTruncated.trimEnd()}…`;
+};
+
+const buildBriefLinkedInDraft = ({ companyName, contact, salesBrief }) => {
+  const linkedin = getContactLinkedIn(contact);
+  if (!linkedin) return null;
+
+  const talkTrack = salesBrief?.recommended_angle_talk_track;
+  const primaryAngle = findTalkTrackField(
+    talkTrack,
+    ['primary_angle', 'primary'],
+    ['primary angle', 'primary']
+  );
+  const valueFraming = findTalkTrackField(
+    talkTrack,
+    ['value_framing', 'value'],
+    ['value framing', 'value']
+  );
+  const discoveryHook = findTalkTrackField(
+    talkTrack,
+    ['discovery_hook', 'hook'],
+    ['discovery hook', 'hook']
+  );
+  const firstTalkTrackText = getBriefFieldText(talkTrack);
+  const whyNow = getBriefFieldText(salesBrief?.why_now);
+  const discoveryContext = cleanInlineText(discoveryHook || whyNow);
+  const angleContext = cleanInlineText(primaryAngle || valueFraming || firstTalkTrackText);
+
+  if (!discoveryContext && !angleContext) return null;
+
+  const firstName = getFirstName(getContactName(contact));
+  const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
+  const safeCompanyName = cleanInlineText(companyName) || 'your business';
+  const compactDiscovery = discoveryContext
+    ? `noticed ${safeCompanyName}: ${sentenceCase(discoveryContext)}`
+    : `noticed ${safeCompanyName}`;
+  const compactAngle = angleContext || discoveryContext;
+  const message = [
+    greeting,
+    compactDiscovery,
+    compactAngle ? `Thought ${sentenceCase(compactAngle)} might be relevant.` : null,
+    'Open to connecting?'
+  ].filter(Boolean).join(' ');
+
+  return {
+    profileUrl: linkedin,
+    message: trimToLimit(message, LINKEDIN_MESSAGE_LIMIT)
+  };
+};
 
 const buildRouteMatchKeys = (route) => {
   const name = normalizeIdentity(route?.name);
@@ -155,13 +341,64 @@ const MiniTile = ({ label, value, isBadge }) => (
   </div>
 );
 
-const ContactCard = ({ contact, routeLabels = [] }) => {
+const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => {
+  const emailDraft = buildBriefEmailDraft({ companyName, contact, salesBrief });
+  const linkedInDraft = buildBriefLinkedInDraft({ companyName, contact, salesBrief });
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState(emailDraft?.subject || '');
+  const [emailBody, setEmailBody] = useState(emailDraft?.body || '');
+  const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
+  const [linkedInMessage, setLinkedInMessage] = useState(linkedInDraft?.message || '');
+
   if (!contact) return null;
   const name = getContactName(contact) || 'Unknown Contact';
   const role = getContactRole(contact) || 'Unknown Role';
   const phone = contact.telephone || contact.phone || '—';
   const email = getContactEmail(contact) || '—';
   const linkedin = getContactLinkedIn(contact) || '—';
+
+  const mailtoUrl = emailDraft
+    ? `mailto:${encodeURIComponent(emailDraft.to)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
+    : '';
+  const canOpenMailto = Boolean(emailDraft) && mailtoUrl.length <= 1900;
+
+  const onOpenEmailDraft = (event) => {
+    event.stopPropagation();
+    if (!emailDraft) return;
+    setEmailSubject(emailDraft.subject);
+    setEmailBody(emailDraft.body);
+    setEmailDialogOpen(true);
+  };
+
+  const onCopyDraft = async (event) => {
+    event.stopPropagation();
+    const draftText = `To: ${emailDraft.to}\nSubject: ${emailSubject}\n\n${emailBody}`;
+    await navigator.clipboard?.writeText(draftText);
+  };
+
+  const onOpenMailto = (event) => {
+    event.stopPropagation();
+    if (!canOpenMailto) return;
+    window.location.href = mailtoUrl;
+  };
+
+  const onOpenLinkedInDraft = (event) => {
+    event.stopPropagation();
+    if (!linkedInDraft) return;
+    setLinkedInMessage(linkedInDraft.message);
+    setLinkedInDialogOpen(true);
+  };
+
+  const onCopyLinkedInDraft = async (event) => {
+    event.stopPropagation();
+    await navigator.clipboard?.writeText(linkedInMessage);
+  };
+
+  const onOpenLinkedInProfile = (event) => {
+    event.stopPropagation();
+    if (!linkedInDraft?.profileUrl) return;
+    window.open(linkedInDraft.profileUrl, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <Card className="bg-card shadow-sm border-border">
@@ -170,19 +407,17 @@ const ContactCard = ({ contact, routeLabels = [] }) => {
           <div className="min-w-0">
             <p className="font-semibold">{name}</p>
             <p className="text-sm text-muted-foreground">{role}</p>
-            {routeLabels.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {routeLabels.map((label) => (
-                  <Badge
-                    key={label}
-                    variant="outline"
-                    className="px-2 py-0 text-[11px] font-medium bg-muted/30 text-muted-foreground border-border/70"
-                  >
-                    {label}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <div className="mt-2 flex min-h-8 flex-wrap gap-1.5">
+              {routeLabels.map((label) => (
+                <Badge
+                  key={label}
+                  variant="outline"
+                  className="px-2 py-0 text-[11px] font-medium bg-muted/30 text-muted-foreground border-border/70"
+                >
+                  {label}
+                </Badge>
+              ))}
+            </div>
           </div>
           {contact.confidence && (
             <Badge variant="outline" className={cn("text-xs font-medium", getConfidenceColor(contact.confidence))}>
@@ -209,6 +444,127 @@ const ContactCard = ({ contact, routeLabels = [] }) => {
             </div>
           )}
         </div>
+
+        {emailDraft && email !== '—' && (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="w-full justify-center"
+              onClick={onOpenEmailDraft}
+            >
+              <Mail className="h-4 w-4" />
+              Generate email
+            </Button>
+            <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+              <DialogContent className="sm:max-w-2xl" onClick={(event) => event.stopPropagation()}>
+                <DialogHeader>
+                  <DialogTitle>Generated email draft</DialogTitle>
+                  <DialogDescription>
+                    Review the draft before copying it or opening your email client.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium" htmlFor={`email-to-${emailDraft.to}`}>To</label>
+                    <Input id={`email-to-${emailDraft.to}`} value={emailDraft.to} readOnly />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium" htmlFor={`email-subject-${emailDraft.to}`}>Subject</label>
+                    <Input
+                      id={`email-subject-${emailDraft.to}`}
+                      value={emailSubject}
+                      onChange={(event) => setEmailSubject(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium" htmlFor={`email-body-${emailDraft.to}`}>Body</label>
+                    <Textarea
+                      id={`email-body-${emailDraft.to}`}
+                      value={emailBody}
+                      onChange={(event) => setEmailBody(event.target.value)}
+                      rows={10}
+                      className="resize-y"
+                    />
+                  </div>
+                  {!canOpenMailto && (
+                    <p className="text-sm text-muted-foreground">
+                      This draft is too long to open reliably as a mailto link. Copy it into your email client instead.
+                    </p>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={onCopyDraft}>
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </Button>
+                  <Button type="button" onClick={onOpenMailto} disabled={!canOpenMailto}>
+                    <ExternalLink className="h-4 w-4" />
+                    Open in email client
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
+
+        {linkedInDraft && linkedin !== '—' && (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full justify-center"
+              onClick={onOpenLinkedInDraft}
+            >
+              <Linkedin className="h-4 w-4" />
+              Generate LinkedIn
+            </Button>
+            <Dialog open={linkedInDialogOpen} onOpenChange={setLinkedInDialogOpen}>
+              <DialogContent className="sm:max-w-2xl" onClick={(event) => event.stopPropagation()}>
+                <DialogHeader>
+                  <DialogTitle>Generated LinkedIn message</DialogTitle>
+                  <DialogDescription>
+                    Review the connection note before copying it or opening the LinkedIn profile.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium" htmlFor={`linkedin-profile-${name}`}>LinkedIn profile</label>
+                    <Input id={`linkedin-profile-${name}`} value={linkedInDraft.profileUrl} readOnly />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-sm font-medium" htmlFor={`linkedin-message-${name}`}>Message</label>
+                      <span className="text-xs text-muted-foreground">
+                        {linkedInMessage.length} / {LINKEDIN_MESSAGE_LIMIT}
+                      </span>
+                    </div>
+                    <Textarea
+                      id={`linkedin-message-${name}`}
+                      value={linkedInMessage}
+                      onChange={(event) => setLinkedInMessage(event.target.value)}
+                      maxLength={LINKEDIN_MESSAGE_LIMIT}
+                      rows={5}
+                      className="resize-y"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={onCopyLinkedInDraft}>
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </Button>
+                  <Button type="button" onClick={onOpenLinkedInProfile}>
+                    <ExternalLink className="h-4 w-4" />
+                    Open LinkedIn profile
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -435,7 +791,6 @@ const FinalBriefRenderer = ({ briefData }) => {
     ? researchAppendix.contacts.items 
     : (Array.isArray(researchAppendix.contacts) ? researchAppendix.contacts : []);
   
-  const contactMatchNote = researchAppendix.contacts?.contact_match_note;
   const routeLabelsByContactIndex = buildContactRouteLabels(contacts, salesBrief.who_to_contact || {});
 
   // Extract company name from briefData or data
@@ -473,7 +828,13 @@ const FinalBriefRenderer = ({ briefData }) => {
         {contacts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {contacts.map((contact, i) => (
-              <ContactCard key={i} contact={contact} routeLabels={routeLabelsByContactIndex.get(i) || []} />
+              <ContactCard
+                key={i}
+                contact={contact}
+                routeLabels={routeLabelsByContactIndex.get(i) || []}
+                companyName={companyName}
+                salesBrief={salesBrief}
+              />
             ))}
           </div>
         ) : (
@@ -483,13 +844,6 @@ const FinalBriefRenderer = ({ briefData }) => {
               <p>No named contacts were captured yet. Use the ICP-aligned target titles as the recommended starting point.</p>
             </CardContent>
           </Card>
-        )}
-        
-        {contactMatchNote && (
-          <div className="flex items-start gap-2 text-sm text-muted-foreground mt-3 bg-muted/30 p-3 rounded-lg">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <p>{contactMatchNote}</p>
-          </div>
         )}
       </Section>
 

@@ -73,15 +73,14 @@ const FeedbackPage = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch feedback with sorting applied to the query
-        const { data: feedbackData, error: feedbackError } = await supabase
-          .from('portal_brief_feedback')
-          .select('id, client_id, run_id, company_id, brief_verdict, quick_reason, contacted, meeting_booked, notes, created_at, updated_at')
-          .eq('client_id', client_id)
-          .order(sortField, { ascending: sortOrder === 'asc' });
+        const { data, error: feedbackError } = await supabase.rpc('portal_feedback_rows_for_client', {
+          p_client_id: client_id,
+          p_sort_field: sortField ?? 'updated_at',
+          p_sort_order: sortOrder ?? 'desc'
+        });
 
         if (feedbackError) {
-          console.error('Supabase query error in fetchFeedbackData (feedback):', {
+          console.error('Supabase query error in fetchFeedbackData:', {
             message: feedbackError.message,
             code: feedbackError.code,
             details: feedbackError.details,
@@ -90,29 +89,7 @@ const FeedbackPage = () => {
           throw feedbackError;
         }
 
-        // Fetch company details for names
-        const { data: companyData, error: companyError } = await supabase
-          .from('portal_company_detail')
-          .select('company_id, name')
-          .eq('client_id', client_id);
-
-        if (companyError) {
-          console.error('Supabase query error in fetchFeedbackData (companies):', {
-            message: companyError.message,
-            code: companyError.code,
-            details: companyError.details,
-            hint: companyError.hint
-          });
-        }
-
-        const companyMap = new Map((companyData || []).map(c => [c.company_id, c.name]));
-
-        const enrichedData = (feedbackData || []).map(fb => ({
-          ...fb,
-          company_name: companyMap.get(fb.company_id) || fb.company_id
-        }));
-
-        setRawData(enrichedData);
+        setRawData(data || []);
       } catch (err) {
         console.error('Failed to fetch feedback data:', err);
         setError('Failed to load feedback data. Please try again later.');

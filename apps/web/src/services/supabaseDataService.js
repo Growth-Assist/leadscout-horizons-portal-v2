@@ -358,57 +358,7 @@ class SupabaseDataService {
         return null;
       }
 
-      let snapshot = data && data.length > 0 ? data[0] : null;
-
-      // --- FRONTEND WORKAROUND FOR RPC FUNNEL LOGIC ---
-      // The backend RPC incorrectly combines verdict and contacted filters, 
-      // causing contacted counts to drop if verdict is 'bad' or null.
-      // We recalculate the funnel summary here using independent counts.
-      if (snapshot) {
-        try {
-          const { data: fbData } = await supabase
-            .from('portal_brief_feedback')
-            .select('company_id, brief_verdict, contacted, meeting_booked')
-            .eq('client_id', clientId);
-
-          const { data: compData } = await supabase
-            .from('portal_target_company_detail')
-            .select('company_id, campaign_id')
-            .eq('client_id', clientId);
-
-          if (fbData && compData) {
-            const compMap = new Map(compData.map(c => [c.company_id, c]));
-            
-            let reviewed = 0;
-            let contacted = 0;
-            let meetingBooked = 0;
-
-            fbData.forEach(fb => {
-              const comp = compMap.get(fb.company_id);
-              
-              // Apply campaign filter if selected
-              if (campaign && comp && comp.campaign_id !== campaign) return;
-              
-              // Independent counting logic (REGARDLESS of verdict for contacted/meeting)
-              if (fb.brief_verdict) reviewed++;
-              if (fb.contacted) contacted++;
-              if (fb.meeting_booked) meetingBooked++;
-            });
-
-            // Override the RPC's funnel_summary with the corrected independent counts
-            snapshot.funnel_summary = [
-              { id: 'generated', stage: 'generated', count: snapshot.generated_briefs || 0 },
-              { id: 'reviewed', stage: 'reviewed', count: reviewed },
-              { id: 'contacted', stage: 'contacted', count: contacted },
-              { id: 'meeting_booked', stage: 'meeting_booked', count: meetingBooked }
-            ];
-          }
-        } catch (err) {
-          console.error('Error in funnel workaround:', err);
-        }
-      }
-
-      return snapshot;
+      return data && data.length > 0 ? data[0] : null;
     } catch (error) {
       console.error('Exception in fetchPortalTargetAnalyticsSnapshot:', {
         error: error.message,

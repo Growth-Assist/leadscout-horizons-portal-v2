@@ -2142,6 +2142,27 @@ export type Database = {
           watch_companies: number
         }[]
       }
+      portal_feedback_rows_for_client: {
+        Args: {
+          p_client_id: string
+          p_sort_field?: string
+          p_sort_order?: string
+        }
+        Returns: {
+          brief_verdict: string
+          client_id: string
+          company_id: string
+          company_name: string
+          contacted: boolean
+          created_at: string
+          id: string
+          meeting_booked: boolean
+          notes: string
+          quick_reason: string
+          run_id: string
+          updated_at: string
+        }[]
+      }
       portal_recent_finalized_briefs_for_client: {
         Args: { p_client_id: string; p_limit?: number }
         Returns: {
