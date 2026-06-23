@@ -13,5 +13,8 @@
   },
   "workspaces": [
     "apps/*"
-  ]
+  ],
+  "dependencies": {
+    "react-is": "^19.2.7"
+  }
 }
