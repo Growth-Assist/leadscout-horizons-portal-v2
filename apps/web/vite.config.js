@@ -303,6 +303,7 @@ export default defineConfig({
 		allowedHosts: [
 			'.app-preview.com',
 			'.app-preview.io',
+			'.ngrok-free.dev',
 		],
 		fs: {
 			strict: true,

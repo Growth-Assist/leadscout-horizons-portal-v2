@@ -14,6 +14,7 @@ import ICPProfilePage from '@/pages/ICPProfilePage.jsx';
 import AnalyticsPage from '@/pages/AnalyticsPage.jsx';
 import ClientContextPage from '@/pages/ClientContextPage.jsx';
 import FeedbackPage from '@/pages/FeedbackPage.jsx';
+import CompanyQualifierPage from '@/pages/CompanyQualifierPage.jsx';
 import { Loader2 } from 'lucide-react';
 
 const RootRoute = () => {
@@ -79,6 +80,11 @@ function App() {
             <Route path="/feedback" element={
               <ProtectedRoute>
                 <FeedbackPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/qualify" element={
+              <ProtectedRoute>
+                <CompanyQualifierPage />
               </ProtectedRoute>
             } />
             <Route path="/analytics" element={

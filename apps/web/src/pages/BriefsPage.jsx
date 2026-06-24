@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import supabaseDataService, { supabase } from '@/services/supabaseDataService.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
+import { normalizeAssignmentStatus } from '@/utils/assignmentStatus.js';
 
 const PUBLIC_BASE_URL = 'https://poc.growth-assist.co.uk';
 
@@ -59,10 +60,10 @@ const getVerdictBadge = (verdict) => {
 };
 
 const getAssignmentStatusBadge = (status) => {
-  const s = status?.toLowerCase();
+  const s = normalizeAssignmentStatus(status)?.toLowerCase();
   if (s === 'assigned') return <Badge variant="outline" className="bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-400/10 dark:text-slate-400">Assigned</Badge>;
-  if (s === 'reviewing') return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-400">Reviewing</Badge>;
   if (s === 'contacted') return <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/20 dark:bg-orange-400/10 dark:text-orange-400">Contacted</Badge>;
+  if (s === 'nurture') return <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-400">Nurture</Badge>;
   if (s === 'meeting_booked') return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 dark:bg-green-400/10 dark:text-green-400">Meeting Booked</Badge>;
   if (s === 'closed') return <Badge variant="outline" className="bg-slate-800/10 text-slate-800 border-slate-800/20 dark:bg-slate-200/10 dark:text-slate-300">Closed</Badge>;
   return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border/50">Unassigned</Badge>;
@@ -112,7 +113,7 @@ const exportBriefsToCSV = (briefs) => {
         escapeCSV(row.mappedDecision),
         escapeCSV(row.mappedWebsite),
         escapeCSV(assigneeName),
-        escapeCSV(row.assignment_status || ''),
+        escapeCSV(normalizeAssignmentStatus(row.assignment_status) || ''),
         escapeCSV(formatVerdictLabel(row.feedback_verdict)),
         escapeCSV(row.feedback_quick_reason),
         escapeCSV(row.feedback_contacted),
@@ -323,7 +324,7 @@ const BriefsPage = () => {
           assignment_display_name: assignment?.assigned_to_display_name || null,
           assignment_email: assignment?.assigned_to_email || null,
           assignment_is_active: assignment?.assigned_to_is_active ?? true,
-          assignment_status: assignment?.status || null,
+          assignment_status: normalizeAssignmentStatus(assignment?.status) || null,
         };
       });
 
@@ -441,13 +442,15 @@ const BriefsPage = () => {
       }
 
       // Hide closed briefs by default unless explicitly filtering for them
-      if (item.assignment_status === 'closed' && assignmentStatusFilter !== 'closed') {
+      const normalizedAssignmentStatus = normalizeAssignmentStatus(item.assignment_status);
+
+      if (normalizedAssignmentStatus === 'closed' && assignmentStatusFilter !== 'closed') {
         return false;
       }
 
       // Assignment Status filtering
       if (assignmentFilter !== 'unassigned' && assignmentStatusFilter !== 'all') {
-        if (item.assignment_status !== assignmentStatusFilter) return false;
+        if (normalizedAssignmentStatus !== assignmentStatusFilter) return false;
       }
 
       if (fromDate) {
@@ -477,8 +480,8 @@ const BriefsPage = () => {
         valB = nameB ? nameB.toLowerCase() : 'zzz';
       }
       if (sortField === 'assignment_status') {
-        valA = a.assignment_status || 'zzz';
-        valB = b.assignment_status || 'zzz';
+        valA = normalizeAssignmentStatus(a.assignment_status) || 'zzz';
+        valB = normalizeAssignmentStatus(b.assignment_status) || 'zzz';
       }
 
       if (sortField === 'industry') {
@@ -688,8 +691,8 @@ const BriefsPage = () => {
                         <SelectContent>
                           <SelectItem value="all">Status: All</SelectItem>
                           <SelectItem value="assigned">Assigned</SelectItem>
-                          <SelectItem value="reviewing">Reviewing</SelectItem>
                           <SelectItem value="contacted">Contacted</SelectItem>
+                          <SelectItem value="nurture">Nurture</SelectItem>
                           <SelectItem value="meeting_booked">Meeting Booked</SelectItem>
                           <SelectItem value="closed">Closed</SelectItem>
                         </SelectContent>

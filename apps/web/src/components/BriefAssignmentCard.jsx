@@ -8,14 +8,7 @@ import { Loader2, User, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import supabaseDataService from '@/services/supabaseDataService.js';
 import { cn } from '@/lib/utils.js';
-
-const STAGES = [
-  { id: 'assigned', label: 'Assigned' },
-  { id: 'reviewing', label: 'Reviewing' },
-  { id: 'contacted', label: 'Contacted' },
-  { id: 'meeting_booked', label: 'Meeting Booked' },
-  { id: 'closed', label: 'Closed' }
-];
+import { ASSIGNMENT_STAGES, getAssignmentStatusLabel, normalizeAssignmentStatus } from '@/utils/assignmentStatus.js';
 
 const BriefAssignmentCard = ({ 
   clientId, 
@@ -127,6 +120,7 @@ const BriefAssignmentCard = ({
 
   const handleStatusChange = async (newStatus) => {
     if (!assignment?.id) return;
+    if (normalizeAssignmentStatus(assignment.status) === newStatus) return;
 
     const previousStatus = assignment.status;
     
@@ -141,7 +135,7 @@ const BriefAssignmentCard = ({
       
       toast({
         title: "Status updated",
-        description: `Assignment status changed to ${STAGES.find(s => s.id === newStatus)?.label}.`
+        description: `Assignment status changed to ${getAssignmentStatusLabel(newStatus)}.`
       });
     } catch (err) {
       console.error('Error updating status:', err);
@@ -166,7 +160,7 @@ const BriefAssignmentCard = ({
         companyId,
         finalBriefRunId,
         assignedTo: newAssigneeId,
-        status: assignment?.status || 'assigned'
+        status: normalizeAssignmentStatus(assignment?.status) || 'assigned'
       });
 
       toast({
@@ -206,8 +200,10 @@ const BriefAssignmentCard = ({
     );
   }
 
+  const normalizedAssignmentStatus = normalizeAssignmentStatus(assignment?.status);
+
   const currentStatusIndex = assignment 
-    ? STAGES.findIndex(s => s.id === assignment.status)
+    ? ASSIGNMENT_STAGES.findIndex(s => s.id === normalizedAssignmentStatus)
     : -1;
 
   const assigneeName = assignment 
@@ -216,6 +212,7 @@ const BriefAssignmentCard = ({
 
   const isAssigneeInactive = assignment && assignment.assigned_to_is_active === false;
   const isCurrentUserAssignee = assignment && currentUser && assignment.assigned_to === currentUser.id;
+  const canUpdateStatus = Boolean(assignment && (isCurrentUserAssignee || isManager));
 
   return (
     <Card className="border-border shadow-sm">
@@ -240,14 +237,27 @@ const BriefAssignmentCard = ({
       <CardContent className="space-y-6">
         {/* Funnel Visualization */}
         <div className="relative overflow-hidden py-1">
-          <div className="flex items-center justify-between w-full">
-            {STAGES.map((stage, index) => {
+          <div className="flex items-start justify-between w-full">
+            {ASSIGNMENT_STAGES.map((stage, index) => {
               const isCompleted = currentStatusIndex > index;
               const isCurrent = currentStatusIndex === index;
               
               return (
                 <React.Fragment key={stage.id}>
-                  <div className="flex flex-col items-center gap-2 relative z-10 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(stage.id)}
+                    disabled={!canUpdateStatus || actionLoading || isCurrent}
+                    aria-label={`Move assignment to ${stage.label}`}
+                    aria-current={isCurrent ? 'step' : undefined}
+                    className={cn(
+                      "flex flex-col items-center gap-2 relative z-10 flex-1 rounded-md bg-transparent border-0 p-0 transition-colors",
+                      canUpdateStatus && !isCurrent
+                        ? "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        : "cursor-default",
+                      "disabled:pointer-events-auto disabled:opacity-100"
+                    )}
+                  >
                     <div 
                       className={cn(
                         "flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors bg-background",
@@ -266,7 +276,7 @@ const BriefAssignmentCard = ({
                     </div>
                     <span 
                       className={cn(
-                        "text-xs font-medium text-center px-1",
+                        "text-xs font-medium text-center px-1 min-h-10 flex items-start justify-center text-balance",
                         isCompleted ? "text-foreground" : 
                         isCurrent ? "text-primary" : 
                         "text-muted-foreground"
@@ -274,15 +284,15 @@ const BriefAssignmentCard = ({
                     >
                       {stage.label}
                     </span>
-                  </div>
+                  </button>
                   
                   {/* Connecting Line */}
-                  {index < STAGES.length - 1 && (
+                  {index < ASSIGNMENT_STAGES.length - 1 && (
                     <div 
                       className="absolute top-5 flex items-center justify-center pointer-events-none" 
                       style={{ 
-                        left: `${(index * (100 / STAGES.length)) + (100 / (STAGES.length * 2))}%`, 
-                        width: `${100 / STAGES.length}%` 
+                        left: `${(index * (100 / ASSIGNMENT_STAGES.length)) + (100 / (ASSIGNMENT_STAGES.length * 2))}%`, 
+                        width: `${100 / ASSIGNMENT_STAGES.length}%` 
                       }}
                     >
                       <div 
@@ -349,7 +359,7 @@ const BriefAssignmentCard = ({
                 Update Status
               </label>
               <Select 
-                value={assignment.status} 
+                value={normalizedAssignmentStatus} 
                 onValueChange={handleStatusChange}
                 disabled={actionLoading}
               >
@@ -357,7 +367,7 @@ const BriefAssignmentCard = ({
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STAGES.map((stage) => (
+                  {ASSIGNMENT_STAGES.map((stage) => (
                     <SelectItem key={stage.id} value={stage.id}>
                       {stage.label}
                     </SelectItem>
@@ -371,7 +381,7 @@ const BriefAssignmentCard = ({
                 Current Status
               </label>
               <div className="text-sm font-medium px-3 py-2 border rounded-md bg-muted/30 w-full sm:w-[240px]">
-                {STAGES.find(s => s.id === assignment.status)?.label || assignment.status}
+                {getAssignmentStatusLabel(normalizedAssignmentStatus)}
               </div>
             </div>
           )}

@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, FileText, Target, BarChart3, TrendingUp, Download, Building2, MessageSquare as MessageSquareText, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Target, BarChart3, TrendingUp, Download, Building2, MessageSquare as MessageSquareText, SearchCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
   { to: '/overview', icon: LayoutDashboard, label: 'Overview' },
   { to: '/briefs', icon: FileText, label: 'Lead Queue' },
+  { to: '/qualify', icon: SearchCheck, label: 'Quick Qualify' },
   { to: '/feedback', icon: MessageSquareText, label: 'Feedback' },
   { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
   { to: '/icp-profile', icon: Target, label: 'ICP Profile' },
