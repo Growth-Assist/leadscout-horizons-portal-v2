@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { Fragment, useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -243,7 +243,7 @@ const BriefAssignmentCard = ({
               const isCurrent = currentStatusIndex === index;
               
               return (
-                <React.Fragment key={stage.id}>
+                <Fragment key={stage.id}>
                   <button
                     type="button"
                     onClick={() => handleStatusChange(stage.id)}
@@ -303,7 +303,7 @@ const BriefAssignmentCard = ({
                       />
                     </div>
                   )}
-                </React.Fragment>
+                </Fragment>
               );
             })}
           </div>

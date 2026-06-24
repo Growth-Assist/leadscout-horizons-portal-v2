@@ -9,6 +9,7 @@ build/
 .turbo/
 .cache/
 coverage/
+apps/web/public/llms.txt
 
 # Logs
 *.log
