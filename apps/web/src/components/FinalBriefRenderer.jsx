@@ -30,6 +30,15 @@ const getConfidenceColor = (confidence) => {
   return 'bg-secondary text-secondary-foreground';
 };
 
+const getCompactConfidenceLabel = (confidence) => {
+  const normalized = String(confidence || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized.startsWith('high')) return 'High';
+  if (normalized.startsWith('medium')) return 'Medium';
+  if (normalized.startsWith('low')) return 'Low';
+  return '';
+};
+
 const ROUTE_LABELS = {
   primary_buyer: 'Primary buyer',
   likely_influencer: 'Likely influencer',
@@ -356,6 +365,7 @@ const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => 
   const phone = contact.telephone || contact.phone || '—';
   const email = getContactEmail(contact) || '—';
   const linkedin = getContactLinkedIn(contact) || '—';
+  const confidenceLabel = getCompactConfidenceLabel(contact.confidence);
 
   const mailtoUrl = emailDraft
     ? `mailto:${encodeURIComponent(emailDraft.to)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
@@ -419,9 +429,9 @@ const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => 
               ))}
             </div>
           </div>
-          {contact.confidence && (
-            <Badge variant="outline" className={cn("text-xs font-medium", getConfidenceColor(contact.confidence))}>
-              {contact.confidence} Match
+          {confidenceLabel && (
+            <Badge variant="outline" className={cn("text-xs font-medium", getConfidenceColor(confidenceLabel))}>
+              {confidenceLabel} Match
             </Badge>
           )}
         </div>

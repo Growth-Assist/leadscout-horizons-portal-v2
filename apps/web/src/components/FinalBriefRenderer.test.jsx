@@ -213,6 +213,29 @@ describe('FinalBriefRenderer contact routing badges', () => {
     expect(screen.queryByText(/best-fit outreach route/i)).not.toBeInTheDocument();
     expect(briefJson.research_appendix.contacts.contact_match_note).toBe('Best-fit outreach route would likely be through senior commercial leadership.');
   });
+
+  it('converts verbose contact confidence text into a compact match badge', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Alan Smith',
+              role: 'Managing Director',
+              email: 'alan@example.com',
+              confidence: 'High confidence; verified Apollo contact matched on seniority fallback for Rhopoint Metrology Limited.'
+            }
+          ]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('Alan Smith'));
+    expect(card.getByText('High Match')).toBeInTheDocument();
+    expect(screen.queryByText(/verified Apollo contact matched/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/seniority fallback/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rhopoint Metrology Limited/i)).not.toBeInTheDocument();
+  });
 });
 
 describe('FinalBriefRenderer generated email drafts', () => {
