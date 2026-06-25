@@ -26,9 +26,236 @@ const renderBrief = (finalBriefJson) => render(
   />
 );
 
-const contactCardFor = (name) => screen.getByText(name).closest('.bg-card');
+const capturedContactsSection = () => (
+  screen.getByRole('heading', { name: 'Captured Contacts' }).parentElement
+);
+
+const contactCardFor = (name) => within(capturedContactsSection()).getByText(name).closest('.bg-card');
+
+describe('FinalBriefRenderer route evidence cards', () => {
+  it('renders route evidence cards above captured contacts and replaces lookup evidence', () => {
+    renderBrief({
+      ...baseBriefJson({
+        sales_brief: {
+          who_to_contact: {
+            primary_buyer: {
+              role: 'Facilities Manager'
+            }
+          }
+        },
+        research_appendix: {
+          property_signals: {
+            organisation_contact_routes: [
+              {
+                name: 'The Sign Bridge Ltd',
+                role: 'main_contractor',
+                notes: 'Provided signage works at the site.',
+                confidence: 'medium'
+              },
+              {
+                name: 'Northgate Estates',
+                role: 'asset_manager',
+                notes: 'Controls property maintenance approvals.',
+                confidence: 'high'
+              }
+            ]
+          },
+          contacts: {
+            selected_contact_route: 'asset manager',
+            contact_route_reason: 'Asset manager is the recommended property-control route.',
+            items: [
+              {
+                name: 'Jane Buyer',
+                role: 'Operations Director',
+                email: 'jane@example.com'
+              }
+            ]
+          }
+        }
+      })
+    });
+
+    expect(screen.queryByRole('heading', { name: 'Lookup Evidence' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Route Evidence' })).toBeInTheDocument();
+    expect(screen.getByText('The Sign Bridge Ltd')).toBeInTheDocument();
+    expect(screen.getByText('Northgate Estates')).toBeInTheDocument();
+    expect(screen.getByText('Provided signage works at the site.')).toBeInTheDocument();
+    expect(screen.getByText('Selected route')).toBeInTheDocument();
+    expect(screen.getAllByText('No route identified')).toHaveLength(3);
+
+    const routeHeading = screen.getByRole('heading', { name: 'Route Evidence' });
+    const contactsHeading = screen.getByRole('heading', { name: 'Captured Contacts' });
+    expect(
+      routeHeading.compareDocumentPosition(contactsHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByText('Jane Buyer')).toBeInTheDocument();
+  });
+
+  it('renders blank route cards when route data is absent', () => {
+    renderBrief(baseBriefJson());
+
+    expect(screen.queryByRole('heading', { name: 'Lookup Evidence' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Route Evidence' })).toBeInTheDocument();
+    expect(screen.getAllByText('No route identified')).toHaveLength(6);
+    expect(screen.getByRole('heading', { name: 'Captured Contacts' })).toBeInTheDocument();
+  });
+});
+
+describe('FinalBriefRenderer OS roof candidate evidence', () => {
+  it('renders full OS roof candidate evidence below captured contacts', () => {
+    renderBrief({
+      ...baseBriefJson({
+        research_appendix: {
+          contacts: {
+            items: [
+              {
+                name: 'Jane Buyer',
+                role: 'Operations Director',
+                email: 'jane@example.com'
+              }
+            ]
+          }
+        }
+      }),
+      research: {
+        os_ngd_roof_candidate: {
+          osid: 'osgb123',
+          nearest_address: '149 Broadstone Road, Reddish, Stockport, SK5 7GA',
+          geometry_area_m2: 4262.708,
+          buildingage_period: '1980-1989',
+          buildingage_year: 1985,
+          google_maps_url: 'https://www.google.com/maps/search/?api=1&query=53.433,-2.165',
+          roofmaterial_confidenceindicator: 'Expected Data Output',
+          roofmaterial_evidencedate: '2025-07-12'
+        }
+      }
+    });
+
+    expect(screen.getByRole('heading', { name: 'Property / Site Evidence' })).toBeInTheDocument();
+    expect(screen.getByText('OS Roof Candidate')).toBeInTheDocument();
+    expect(screen.getByText('149 Broadstone Road, Reddish, Stockport, SK5 7GA')).toBeInTheDocument();
+    expect(screen.getByText('4,263 sqm')).toBeInTheDocument();
+    expect(screen.getByText('Strong size signal')).toBeInTheDocument();
+    expect(screen.getByText('1980-1989 / 1985')).toBeInTheDocument();
+    expect(screen.getByText('Strong candidate')).toBeInTheDocument();
+    expect(screen.getByText('High confidence')).toBeInTheDocument();
+    expect(screen.queryByText('Expected Data Output')).not.toBeInTheDocument();
+    expect(screen.getByText('2025-07-12')).toBeInTheDocument();
+    expect(screen.getByText('Fresh evidence')).toBeInTheDocument();
+    expect(screen.getByText('osgb123')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /verify on google maps/i })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=53.433,-2.165'
+    );
+
+    const contactsHeading = screen.getByRole('heading', { name: 'Captured Contacts' });
+    const propertyHeading = screen.getByRole('heading', { name: 'Property / Site Evidence' });
+    expect(
+      contactsHeading.compareDocumentPosition(propertyHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('does not render OS roof candidate evidence when absent', () => {
+    renderBrief(baseBriefJson());
+
+    expect(screen.queryByRole('heading', { name: 'Property / Site Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByText('OS Roof Candidate')).not.toBeInTheDocument();
+  });
+
+  it('renders missing optional fields without empty placeholders', () => {
+    renderBrief({
+      ...baseBriefJson(),
+      research: {
+        os_ngd_roof_candidate: {
+          nearest_address: 'Nearest known address',
+          roofmaterial_confidenceindicator: 'Secondary indicator'
+        }
+      }
+    });
+
+    expect(screen.getByText('OS Roof Candidate')).toBeInTheDocument();
+    expect(screen.getByText('Nearest known address')).toBeInTheDocument();
+    expect(screen.getByText('Medium confidence')).toBeInTheDocument();
+    expect(screen.getByText('Non-standard OS confidence indicator')).toBeInTheDocument();
+    expect(screen.queryByText('Footprint Area')).not.toBeInTheDocument();
+    expect(screen.queryByText('Size unknown')).not.toBeInTheDocument();
+    expect(screen.queryByText('Roof Evidence Date')).not.toBeInTheDocument();
+    expect(screen.queryByText('OSID')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /verify on google maps/i })).not.toBeInTheDocument();
+  });
+
+  it('does not render OS roof candidate data in lookup evidence', () => {
+    renderBrief({
+      ...baseBriefJson(),
+      research: {
+        os_ngd_roof_candidate: {
+          nearest_address: 'OS-only address',
+          geometry_area_m2: 1500,
+          roofmaterial_confidenceindicator: 'Expected Data Output'
+        }
+      }
+    });
+
+    expect(screen.queryByRole('heading', { name: 'Lookup Evidence' })).not.toBeInTheDocument();
+    expect(screen.getByText('OS Roof Candidate')).toBeInTheDocument();
+  });
+});
 
 describe('FinalBriefRenderer contact routing badges', () => {
+  it('shows a route type pill from the contact item without changing existing route badges', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        who_to_contact: {
+          primary_buyer: {
+            name: 'Jane Buyer',
+            role: 'Operations Director',
+            email: 'jane@example.com'
+          }
+        }
+      },
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Jane Buyer',
+              role: 'Operations Director',
+              email: 'jane@example.com',
+              route_type: 'owner'
+            }
+          ]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('Jane Buyer'));
+    expect(card.getByText('Owner')).toBeInTheDocument();
+    expect(card.getByText('Primary buyer')).toBeInTheDocument();
+    expect(card.getByText('Operations Director')).toBeInTheDocument();
+    expect(screen.getAllByText('No route identified')).toHaveLength(6);
+  });
+
+  it('does not show a route type pill when the contact item has no route_type', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Plain Contact',
+              role: 'Operations Manager'
+            }
+          ]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('Plain Contact'));
+    expect(card.getByText('Plain Contact')).toBeInTheDocument();
+    expect(card.getByText('Operations Manager')).toBeInTheDocument();
+    expect(card.queryByText('Owner')).not.toBeInTheDocument();
+    expect(card.queryByText('Contractor')).not.toBeInTheDocument();
+    expect(card.queryByText('Surveyor')).not.toBeInTheDocument();
+  });
+
   it('shows route badges on named contact cards matched by email, LinkedIn, and name plus role', () => {
     renderBrief(baseBriefJson({
       sales_brief: {
@@ -171,9 +398,10 @@ describe('FinalBriefRenderer contact routing badges', () => {
       }
     }));
 
-    expect(screen.getByText('Chris Contact')).toBeInTheDocument();
-    expect(screen.queryByText('Facilities Manager')).not.toBeInTheDocument();
-    expect(screen.queryByText('Fallback route')).not.toBeInTheDocument();
+    const contactsSection = within(capturedContactsSection());
+    expect(contactsSection.getByText('Chris Contact')).toBeInTheDocument();
+    expect(contactsSection.queryByText('Facilities Manager')).not.toBeInTheDocument();
+    expect(contactsSection.queryByText('Fallback route')).not.toBeInTheDocument();
   });
 
   it('uses neutral empty-state copy when no named contacts are captured', () => {

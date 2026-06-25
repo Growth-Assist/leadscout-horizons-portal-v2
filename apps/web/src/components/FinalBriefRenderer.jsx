@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { renderEmailAsLink } from '@/utils/emailRenderer.js';
+import { getOsRoofCandidateEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
+import { getContactRouteTypeLabel } from '@/utils/contactRouteTypes.js';
 
 const getConfidenceColor = (confidence) => {
   const c = (confidence || '').toLowerCase();
@@ -350,6 +352,183 @@ const MiniTile = ({ label, value, isBadge }) => (
   </div>
 );
 
+const getSignalBandClassName = (key) => {
+  if (key === 'strong') return 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400';
+  if (key === 'good') return 'bg-lime-500/20 text-lime-700 border-lime-500/30 dark:text-lime-400';
+  if (key === 'aging') return 'bg-amber-500/20 text-amber-700 border-amber-500/30 dark:text-amber-400';
+  if (key === 'lower') return 'bg-muted/40 text-muted-foreground border-border/70';
+  return 'bg-secondary text-secondary-foreground border-border/70';
+};
+
+const EvidenceSignalTile = ({ label, value, badge }) => {
+  if (!value && !badge?.label) return null;
+
+  return (
+    <div className="flex min-h-28 flex-col gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+      {value && <span className="text-sm font-medium text-foreground">{value}</span>}
+      {badge?.label && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge
+            variant="outline"
+            className={cn('max-w-full whitespace-normal break-words text-left text-xs font-medium leading-tight', getSignalBandClassName(badge.key))}
+          >
+            {badge.label}
+          </Badge>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const OsRoofCandidateSection = ({ evidence }) => {
+  if (!evidence) return null;
+
+  const roofConfidenceLabel = evidence.roofConfidence?.label;
+  const roofConfidenceLevel = evidence.roofConfidence?.level;
+
+  return (
+    <Section title="Property / Site Evidence">
+      <Card className="bg-card shadow-sm border-border">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+                Property / Site Evidence
+              </p>
+              <h4 className="text-lg font-semibold leading-tight text-foreground">{evidence.title}</h4>
+              {evidence.nearestAddress && (
+                <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                  {evidence.nearestAddress}
+                </p>
+              )}
+            </div>
+
+            {evidence.googleMapsUrl && (
+              <a
+                href={evidence.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Verify on Google Maps
+              </a>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <EvidenceSignalTile
+              label="Footprint Area"
+              value={evidence.footprintArea}
+              badge={evidence.footprintArea ? evidence.roofSizeBand : null}
+            />
+            <EvidenceSignalTile
+              label="Building Age"
+              value={evidence.buildingAge}
+              badge={evidence.buildingAge ? evidence.buildingAgeBand : null}
+            />
+            {roofConfidenceLabel && (
+              <div className="flex min-h-28 flex-col gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Roof Confidence</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className={cn('max-w-full whitespace-normal break-words text-left text-xs font-medium leading-tight', getConfidenceColor(roofConfidenceLevel))}
+                  >
+                    {roofConfidenceLabel}
+                  </Badge>
+                </div>
+                {evidence.roofConfidence?.caveat && (
+                  <span className="text-xs text-muted-foreground">{evidence.roofConfidence.caveat}</span>
+                )}
+              </div>
+            )}
+            <EvidenceSignalTile
+              label="Roof Evidence Date"
+              value={evidence.roofEvidenceDate}
+              badge={evidence.roofEvidenceDate ? evidence.roofEvidenceDateBand : null}
+            />
+            {evidence.osid && (
+              <MiniTile label="OSID" value={evidence.osid} />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Section>
+  );
+};
+
+const RouteEvidenceCard = ({ card }) => {
+  const confidenceLabel = getCompactConfidenceLabel(card.confidence);
+
+  return (
+    <Card className={cn(
+      'bg-card shadow-sm',
+      card.isEmpty ? 'border-dashed border-border/70 bg-muted/10' : 'border-border',
+      card.isSelected && 'border-primary/50 bg-primary/5'
+    )}>
+      <CardContent className="p-3 flex flex-col gap-2.5">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+              {card.label}
+            </p>
+            {card.isSelected && (
+              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-[11px]">
+                Selected route
+              </Badge>
+            )}
+          </div>
+          <h4 className={cn(
+            'font-semibold leading-tight',
+            card.isEmpty ? 'text-muted-foreground' : 'text-foreground'
+          )}>
+            {card.isEmpty ? 'No route identified' : card.name}
+          </h4>
+        </div>
+
+        {card.evidence && (
+          <p
+            className="overflow-hidden text-sm leading-snug text-muted-foreground"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical'
+            }}
+          >
+            {card.evidence}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-2">
+          {confidenceLabel ? (
+            <Badge variant="outline" className={cn('text-xs font-medium', getConfidenceColor(confidenceLabel))}>
+              {confidenceLabel} confidence
+            </Badge>
+          ) : (
+            <span className="text-xs font-medium text-muted-foreground">Route slot</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const RouteVisualizationSection = ({ cards }) => {
+  if (!cards || cards.length === 0) return null;
+
+  return (
+    <Section title="Route Evidence">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {cards.map((card, index) => (
+          <RouteEvidenceCard key={`${card.type}-${index}`} card={card} />
+        ))}
+      </div>
+    </Section>
+  );
+};
+
 const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => {
   const emailDraft = buildBriefEmailDraft({ companyName, contact, salesBrief });
   const linkedInDraft = buildBriefLinkedInDraft({ companyName, contact, salesBrief });
@@ -366,6 +545,7 @@ const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => 
   const email = getContactEmail(contact) || '—';
   const linkedin = getContactLinkedIn(contact) || '—';
   const confidenceLabel = getCompactConfidenceLabel(contact.confidence);
+  const routeTypeLabel = getContactRouteTypeLabel(contact.route_type);
 
   const mailtoUrl = emailDraft
     ? `mailto:${encodeURIComponent(emailDraft.to)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
@@ -418,6 +598,14 @@ const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => 
             <p className="font-semibold">{name}</p>
             <p className="text-sm text-muted-foreground">{role}</p>
             <div className="mt-2 flex min-h-8 flex-wrap gap-1.5">
+              {routeTypeLabel && (
+                <Badge
+                  variant="outline"
+                  className="px-2 py-0 text-[11px] font-medium bg-primary/10 text-primary border-primary/25"
+                >
+                  {routeTypeLabel}
+                </Badge>
+              )}
               {routeLabels.map((label) => (
                 <Badge
                   key={label}
@@ -795,6 +983,8 @@ const FinalBriefRenderer = ({ briefData }) => {
 
   const salesBrief = data.sales_brief || {};
   const researchAppendix = data.research_appendix || {};
+  const propertyRouteCards = getPropertyRouteCards(data);
+  const osRoofCandidateEvidence = getOsRoofCandidateEvidence(data);
   
   // Contacts
   const contacts = Array.isArray(researchAppendix.contacts?.items) 
@@ -833,6 +1023,8 @@ const FinalBriefRenderer = ({ briefData }) => {
         )}
       </div>
 
+      <RouteVisualizationSection cards={propertyRouteCards} />
+
       {/* CONTACT CARDS */}
       <Section title="Captured Contacts">
         {contacts.length > 0 ? (
@@ -856,6 +1048,8 @@ const FinalBriefRenderer = ({ briefData }) => {
           </Card>
         )}
       </Section>
+
+      <OsRoofCandidateSection evidence={osRoofCandidateEvidence} />
 
       {/* SALES BRIEF SECTIONS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
