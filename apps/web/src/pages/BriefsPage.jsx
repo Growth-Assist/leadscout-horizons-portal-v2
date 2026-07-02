@@ -22,6 +22,7 @@ import supabaseDataService, { supabase } from '@/services/supabaseDataService.js
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { normalizeAssignmentStatus } from '@/utils/assignmentStatus.js';
+import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
 const PUBLIC_BASE_URL = 'https://poc.growth-assist.co.uk';
 
@@ -231,7 +232,7 @@ const BriefsPage = () => {
       // 2. Fetch main company details
       const { data: detailData, error: fetchError } = await supabase
         .from('portal_target_company_detail')
-        .select('client_id, company_id, latest_run_id, final_brief_run_id, name, website, industry, fit_score, decision, latest_logged_at, campaign_id, signal_id, has_finalized_brief, final_brief_generated_at')
+        .select('client_id, company_id, latest_run_id, final_brief_run_id, name, website, industry, fit_score, decision, latest_logged_at, campaign_id, signal_id, has_finalized_brief, final_brief_generated_at, final_brief_json')
         .eq('client_id', client_id)
         .order('fit_score', { ascending: false, nullsFirst: false });
 
@@ -385,11 +386,19 @@ const BriefsPage = () => {
 
       const snapshotScore = Number.isFinite(parsedScore) ? parsedScore : null;
       const snapshotDecision = row.decision || '';
+      const briefDisplayInfo = getBriefDisplayInfo({
+        row,
+        parsedBrief: fb,
+        fallbackName: row.name || fb.company_name || row.company_id,
+        fallbackUrl: row.website
+      });
 
       return {
         ...row,
-        mappedName: row.name || fb.company_name || row.company_id,
-        mappedWebsite: row.website,
+        mappedName: briefDisplayInfo.displayName,
+        mappedWebsite: briefDisplayInfo.displayUrl,
+        mappedWebsiteLabel: briefDisplayInfo.displayUrlLabel,
+        isPropertyLed: briefDisplayInfo.isPropertyLed,
         mappedIndustry: row.industry || fbCompany.industry || 'Unknown',
         mappedLocation: row.locations || row.postcode || fbCompany.address || 'Unknown',
         mappedScore: snapshotScore,
@@ -950,7 +959,7 @@ const BriefsPage = () => {
                                       {brief.mappedName}
                                     </div>
                                     <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 max-w-[200px] truncate">
-                                      {brief.mappedWebsite || brief.company_id.substring(0, 8)}
+                                      {brief.mappedWebsiteLabel || brief.mappedWebsite || brief.company_id.substring(0, 8)}
                                       {brief.mappedWebsite && (
                                         <a 
                                           href={brief.mappedWebsite.startsWith('http') ? brief.mappedWebsite : `https://${brief.mappedWebsite}`} 
@@ -958,7 +967,7 @@ const BriefsPage = () => {
                                           rel="noreferrer" 
                                           className="text-muted-foreground hover:text-primary transition-colors inline-flex shrink-0"
                                           onClick={(e) => e.stopPropagation()}
-                                          aria-label={`Visit ${brief.mappedName} website`}
+                                          aria-label={brief.isPropertyLed ? `Open ${brief.mappedName} in Google Maps` : `Visit ${brief.mappedName} website`}
                                         >
                                           <ExternalLink className="h-3 w-3" />
                                         </a>

@@ -21,6 +21,7 @@ import { supabase } from '@/services/supabaseDataService.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { getEcommerceSignalAudit } from '@/utils/briefDataExtractors.js';
+import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
 const PUBLIC_BASE_URL = 'https://poc.growth-assist.co.uk';
 
@@ -261,7 +262,15 @@ const BriefDetailPage = () => {
       final_brief_json: parsedBrief || targetData.final_brief_json
     };
 
-    const displayName = name || parsedBrief?.company_name || company_id || 'Unknown Company';
+    const briefDisplayInfo = getBriefDisplayInfo({
+      row: targetData,
+      parsedBrief,
+      fallbackName: name || parsedBrief?.company_name || company_id || 'Unknown Company',
+      fallbackUrl: website
+    });
+    const displayName = briefDisplayInfo.displayName || 'Unknown Company';
+    const displayUrl = briefDisplayInfo.displayUrl;
+    const displayUrlTitle = briefDisplayInfo.isPropertyLed ? 'Open in Google Maps' : 'Visit website';
     
     let extractedIndustry = industry;
     let extractedLocation = null;
@@ -394,13 +403,13 @@ const BriefDetailPage = () => {
                       {displayIndustry} • {displayLocation}
                     </CardDescription>
                   </div>
-                  {website && (
+                  {displayUrl && (
                     <a
-                      href={website.startsWith('http') ? website : `https://${website}`}
+                      href={displayUrl.startsWith('http') ? displayUrl : `https://${displayUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-muted rounded-full text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
-                      title="Visit website"
+                      title={displayUrlTitle}
                     >
                       <ExternalLink className="h-5 w-5" />
                     </a>

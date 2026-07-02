@@ -108,6 +108,24 @@ const CONTRACTOR_PATTERN = /\b(contractor|main[\s_]*contractor|specialist[\s_]*c
 const CONFIDENCE_RANK = { high: 3, medium: 2, low: 1 };
 const CURRENT_YEAR = new Date().getFullYear();
 
+const LEGACY_PROJECT_STAGE_DISPLAY_KEYS = {
+  concept_or_feasibility: 'planning',
+  planning_submitted: 'planning',
+  planning_approved: 'planning',
+  pre_tender: 'tendering',
+  tendering: 'tendering',
+  contractor_appointed: 'onsite',
+  on_site: 'onsite',
+  complete: 'built_operational'
+};
+
+const DISPLAY_STAGE_LABELS = {
+  planning: 'Planning',
+  tendering: 'Tendering',
+  onsite: 'On Site',
+  built_operational: 'Built / Operational'
+};
+
 const asArray = (value) => {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
@@ -140,6 +158,44 @@ const compactJoin = (parts) => {
     })
     .join(' · ');
 };
+
+/**
+ * Normalizes the explicit project stage supplied in the final brief research appendix.
+ *
+ * @param {Object} finalBriefJson - Parsed final brief JSON.
+ * @returns {null|{stageKey: string, stageLabel: string, displayStageKey: string, displayStageLabel: string, displayContextLabel: string, opportunityMode: string, opportunityModeLabel: string, confidence: string, reason: string, evidence: string, sourceSignals: string[]}}
+ */
+export function getProjectStageEvidence(finalBriefJson) {
+  const projectStage = finalBriefJson?.research_appendix?.project_stage;
+  if (!projectStage || typeof projectStage !== 'object') return null;
+
+  const stageKey = cleanText(projectStage.stage_key);
+  const stageLabel = cleanText(projectStage.stage_label);
+  const displayStageKey = cleanText(projectStage.display_stage_key)
+    || LEGACY_PROJECT_STAGE_DISPLAY_KEYS[stageKey]
+    || stageKey;
+  const displayStageLabel = cleanText(projectStage.display_stage_label)
+    || DISPLAY_STAGE_LABELS[displayStageKey]
+    || stageLabel;
+  const sourceSignals = asArray(projectStage.source_signals)
+    .map(cleanText)
+    .filter(Boolean)
+    .slice(0, 4);
+
+  return {
+    stageKey,
+    stageLabel,
+    displayStageKey,
+    displayStageLabel,
+    displayContextLabel: cleanText(projectStage.display_context_label),
+    opportunityMode: cleanText(projectStage.opportunity_mode),
+    opportunityModeLabel: cleanText(projectStage.opportunity_mode_label),
+    confidence: cleanText(projectStage.confidence),
+    reason: cleanText(projectStage.reason),
+    evidence: cleanText(projectStage.evidence),
+    sourceSignals
+  };
+}
 
 const getFirstValue = (item, keys) => {
   for (const key of keys) {
@@ -596,10 +652,25 @@ const getWhoToContactRoutes = (whoToContact) => {
 
   return Object.entries(whoToContact)
     .filter(([, value]) => value && typeof value === 'object')
+    .filter(([, value]) => {
+      const source = cleanText(value.source).toLowerCase();
+      const hasNamedContact = Boolean(cleanText(value.name));
+      return source !== 'client_contact_routing' || hasNamedContact;
+    })
     .map(([key, value]) => ({
       ...value,
       route_type: value.route_type || key
     }));
+};
+
+const getPropertyLedOccupierName = (finalBriefJson) => {
+  const isPropertyLed = finalBriefJson?.property_led === true || finalBriefJson?.metadata?.property_led === true;
+  if (!isPropertyLed) return '';
+
+  return cleanText(finalBriefJson?.research_appendix?.property_signals?.property?.candidate_occupier?.company_name)
+    || cleanText(finalBriefJson?.research?.property_signal_enrichment?.property?.candidate_occupier?.company_name)
+    || cleanText(finalBriefJson?.target_company_name)
+    || cleanText(finalBriefJson?.metadata?.target_company_name);
 };
 
 const getSignalValue = (signal) => (
@@ -716,6 +787,19 @@ export function getPropertyRouteCards(finalBriefJson) {
     const card = normalizeRouteItem(item);
     if (card) setRouteCard(cardsByType, card);
   });
+
+  const occupierFallbackName = getPropertyLedOccupierName(finalBriefJson);
+  if (occupierFallbackName && cardsByType.get('occupier')?.isEmpty) {
+    setRouteCard(cardsByType, {
+      type: 'occupier',
+      label: 'Occupier',
+      name: occupierFallbackName,
+      confidence: '',
+      evidence: '',
+      isSelected: false,
+      isEmpty: false
+    });
+  }
 
   if (selectedRouteType) {
     const selectedCard = cardsByType.get(selectedRouteType);

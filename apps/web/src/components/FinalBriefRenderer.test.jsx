@@ -32,6 +32,147 @@ const capturedContactsSection = () => (
 
 const contactCardFor = (name) => within(capturedContactsSection()).getByText(name).closest('.bg-card');
 
+describe('FinalBriefRenderer project stage diagram', () => {
+  it('renders the simplified project stage row after executive summary and before route evidence', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'planning_submitted',
+          stage_label: 'Planning submitted',
+          display_stage_key: 'planning',
+          display_stage_label: 'Planning',
+          display_context_label: 'Project Stage',
+          opportunity_mode: 'active_project',
+          confidence: 'high',
+          reason: 'Tender documents and procurement language were found.',
+          evidence: 'Procurement notice references roofing package tender.',
+          source_signals: ['planning portal', 'tender notice']
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Project Stage' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Planning' })).toBeInTheDocument();
+    expect(screen.getByText('High confidence')).toBeInTheDocument();
+    expect(screen.queryByText('Tender documents and procurement language were found.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Procurement notice references roofing package tender.')).not.toBeInTheDocument();
+    expect(screen.queryByText('planning portal')).not.toBeInTheDocument();
+    expect(screen.queryByText('tender notice')).not.toBeInTheDocument();
+
+    expect(screen.getByTestId('project-stage-step-planning')).toHaveAttribute('data-status', 'active');
+    expect(screen.getByTestId('project-stage-step-tendering')).toHaveAttribute('data-status', 'pending');
+    expect(screen.getByTestId('project-stage-step-onsite')).toHaveAttribute('data-status', 'pending');
+    expect(screen.getByTestId('project-stage-step-planning')).toHaveAttribute('aria-current', 'step');
+
+    const summaryHeading = screen.getByRole('heading', { name: 'Executive Summary' });
+    const projectHeading = screen.getByRole('heading', { name: 'Project Stage' });
+    const routeHeading = screen.getByRole('heading', { name: 'Route Evidence' });
+    expect(
+      summaryHeading.compareDocumentPosition(projectHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      projectHeading.compareDocumentPosition(routeHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('does not render the project stage diagram when project_stage is missing', () => {
+    renderBrief(baseBriefJson());
+
+    expect(screen.queryByRole('heading', { name: 'Project Stage' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Project stage timeline')).not.toBeInTheDocument();
+  });
+
+  it('highlights on site for construction map style project stages', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'on_site',
+          stage_label: 'On site',
+          display_stage_key: 'onsite',
+          display_stage_label: 'On Site',
+          display_context_label: 'Project Stage',
+          confidence: 'medium'
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Project Stage' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'On Site' })).toBeInTheDocument();
+    expect(screen.getByTestId('project-stage-step-planning')).toHaveAttribute('data-status', 'complete');
+    expect(screen.getByTestId('project-stage-step-tendering')).toHaveAttribute('data-status', 'complete');
+    expect(screen.getByTestId('project-stage-step-onsite')).toHaveAttribute('data-status', 'active');
+  });
+
+  it('renders built operational opportunity mode without a timeline', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'complete',
+          stage_label: 'Complete',
+          display_stage_key: 'built_operational',
+          display_stage_label: 'Built / Operational',
+          display_context_label: 'Opportunity Mode',
+          opportunity_mode: 'built_operational',
+          confidence: 'high',
+          reason: 'OS NGD and EPC signals indicate an existing operational asset.',
+          evidence: 'OS NGD roof material is Metal; large building'
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Opportunity Mode' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Built / Operational' })).toBeInTheDocument();
+    expect(screen.getByText('High confidence')).toBeInTheDocument();
+    expect(screen.getByText('OS NGD and EPC signals indicate an existing operational asset.')).toBeInTheDocument();
+    expect(screen.queryByText('OS NGD roof material is Metal')).not.toBeInTheDocument();
+    expect(screen.queryByText('large building')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Project stage row')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('project-stage-step-planning')).not.toBeInTheDocument();
+    expect(screen.queryByText('complete')).not.toBeInTheDocument();
+  });
+
+  it('renders older project stage data using the stage label', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'tendering',
+          stage_label: 'Tendering',
+          confidence: 'medium'
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Project Stage' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tendering' })).toBeInTheDocument();
+    expect(screen.getByTestId('project-stage-step-planning')).toHaveAttribute('data-status', 'complete');
+    expect(screen.getByTestId('project-stage-step-tendering')).toHaveAttribute('data-status', 'active');
+    expect(screen.getByTestId('project-stage-step-onsite')).toHaveAttribute('data-status', 'pending');
+  });
+
+  it('renders metadata for an unknown stage key without highlighting any step', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'awaiting_budget',
+          stage_label: 'Awaiting budget',
+          confidence: 'medium',
+          reason: 'Stage was supplied by the final brief JSON.'
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Project Stage' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Awaiting budget' })).toBeInTheDocument();
+    expect(screen.getByText('Medium confidence')).toBeInTheDocument();
+    expect(screen.queryByText('awaiting_budget')).not.toBeInTheDocument();
+    expect(screen.queryByText('Stage was supplied by the final brief JSON.')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/^project-stage-step-/)).toHaveLength(3);
+    expect(screen.getAllByTestId(/^project-stage-step-/).every((step) => (
+      step.getAttribute('data-status') === 'pending' && !step.hasAttribute('aria-current')
+    ))).toBe(true);
+  });
+});
+
 describe('FinalBriefRenderer route evidence cards', () => {
   it('renders route evidence cards above captured contacts and replaces lookup evidence', () => {
     renderBrief({

@@ -21,8 +21,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { renderEmailAsLink } from '@/utils/emailRenderer.js';
-import { getOsRoofCandidateEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
+import { getOsRoofCandidateEvidence, getProjectStageEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
 import { getContactRouteTypeLabel } from '@/utils/contactRouteTypes.js';
+import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
 const getConfidenceColor = (confidence) => {
   const c = (confidence || '').toLowerCase();
@@ -364,18 +365,26 @@ const EvidenceSignalTile = ({ label, value, badge }) => {
   if (!value && !badge?.label) return null;
 
   return (
-    <div className="flex min-h-28 flex-col gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+    <div className="grid min-h-28 grid-rows-[auto_minmax(1.75rem,auto)_auto] gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
-      {value && <span className="text-sm font-medium text-foreground">{value}</span>}
+      <div className="flex min-h-7 items-start">
+        {value && <span className="text-sm font-medium text-foreground">{value}</span>}
+      </div>
       {badge?.label && (
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge
             variant="outline"
-            className={cn('max-w-full whitespace-normal break-words text-left text-xs font-medium leading-tight', getSignalBandClassName(badge.key))}
+            className={cn(
+              'max-w-full whitespace-normal break-words text-left text-xs font-medium leading-tight',
+              badge.className || getSignalBandClassName(badge.key)
+            )}
           >
             {badge.label}
           </Badge>
         </div>
+      )}
+      {!badge?.label && (
+        <div />
       )}
     </div>
   );
@@ -429,20 +438,15 @@ const OsRoofCandidateSection = ({ evidence }) => {
               badge={evidence.buildingAge ? evidence.buildingAgeBand : null}
             />
             {roofConfidenceLabel && (
-              <div className="flex min-h-28 flex-col gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Roof Confidence</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge
-                    variant="outline"
-                    className={cn('max-w-full whitespace-normal break-words text-left text-xs font-medium leading-tight', getConfidenceColor(roofConfidenceLevel))}
-                  >
-                    {roofConfidenceLabel}
-                  </Badge>
-                </div>
-                {evidence.roofConfidence?.caveat && (
-                  <span className="text-xs text-muted-foreground">{evidence.roofConfidence.caveat}</span>
-                )}
-              </div>
+              <EvidenceSignalTile
+                label="Roof Confidence"
+                value={evidence.roofConfidence?.caveat}
+                badge={{
+                  key: roofConfidenceLevel,
+                  label: roofConfidenceLabel,
+                  className: getConfidenceColor(roofConfidenceLevel)
+                }}
+              />
             )}
             <EvidenceSignalTile
               label="Roof Evidence Date"
@@ -525,6 +529,129 @@ const RouteVisualizationSection = ({ cards }) => {
           <RouteEvidenceCard key={`${card.type}-${index}`} card={card} />
         ))}
       </div>
+    </Section>
+  );
+};
+
+const getProjectStageStepClassName = (status) => {
+  if (status === 'complete') return 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400';
+  if (status === 'active') return 'border-primary bg-primary/15 text-primary shadow-sm';
+  return 'border-border/70 bg-muted/20 text-muted-foreground';
+};
+
+const ACTIVE_PROJECT_STEPS = [
+  { key: 'planning', label: 'Planning' },
+  { key: 'tendering', label: 'Tendering' },
+  { key: 'onsite', label: 'On Site' }
+];
+
+const ProjectStageSection = ({ stage }) => {
+  if (!stage) return null;
+
+  const confidenceLabel = getCompactConfidenceLabel(stage.confidence);
+  const isBuiltOperational = stage.opportunityMode === 'built_operational'
+    || stage.displayStageKey === 'built_operational';
+  const sectionTitle = stage.displayContextLabel || (isBuiltOperational ? 'Opportunity Mode' : 'Project Stage');
+  const title = stage.displayStageLabel
+    || stage.opportunityModeLabel
+    || stage.stageLabel
+    || (isBuiltOperational ? 'Built / Operational' : 'Stage supplied');
+  const activeIndex = ACTIVE_PROJECT_STEPS.findIndex((step) => step.key === stage.displayStageKey);
+
+  if (isBuiltOperational) {
+    return (
+      <Section title={sectionTitle}>
+        <Card className="bg-card shadow-sm border-border">
+          <CardContent className="p-3 space-y-3">
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+                {stage.displayContextLabel || 'Opportunity Mode'}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-base font-semibold leading-tight text-foreground">
+                  {title}
+                </h4>
+                {confidenceLabel && (
+                  <Badge variant="outline" className={cn('text-[11px] font-medium', getConfidenceColor(confidenceLabel))}>
+                    {confidenceLabel} confidence
+                  </Badge>
+                )}
+              </div>
+              {stage.reason && (
+                <p className="max-w-4xl text-sm leading-relaxed text-muted-foreground">{stage.reason}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title={sectionTitle}>
+      <Card className="bg-card shadow-sm border-border">
+        <CardContent className="p-3 space-y-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+                Project Stage
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-base font-semibold leading-tight text-foreground">
+                  {title}
+                </h4>
+                {confidenceLabel && (
+                  <Badge variant="outline" className={cn('text-[11px] font-medium', getConfidenceColor(confidenceLabel))}>
+                    {confidenceLabel} confidence
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-start gap-2" aria-label="Project stage row">
+              {ACTIVE_PROJECT_STEPS.map((step, index) => {
+                const status = activeIndex === -1
+                  ? 'pending'
+                  : (index < activeIndex ? 'complete' : (index === activeIndex ? 'active' : 'pending'));
+                const isActive = status === 'active';
+                return (
+                  <div key={step.key} className="flex min-w-0 flex-1 items-center">
+                    <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center">
+                      <div
+                        data-testid={`project-stage-step-${step.key}`}
+                        data-status={status}
+                        aria-current={isActive ? 'step' : undefined}
+                        className={cn(
+                          'flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-semibold',
+                          getProjectStageStepClassName(status)
+                        )}
+                      >
+                        {index + 1}
+                      </div>
+                      <span className={cn(
+                        'text-[10px] font-medium leading-tight',
+                        isActive ? 'text-foreground' : 'text-muted-foreground'
+                      )}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {index < ACTIVE_PROJECT_STEPS.length - 1 && (
+                      <div
+                        className={cn(
+                          'mt-3 h-px w-10 shrink-0',
+                          status === 'complete' ? 'bg-green-500/50' : 'bg-border'
+                        )}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </Section>
   );
 };
@@ -985,6 +1112,7 @@ const FinalBriefRenderer = ({ briefData }) => {
   const researchAppendix = data.research_appendix || {};
   const propertyRouteCards = getPropertyRouteCards(data);
   const osRoofCandidateEvidence = getOsRoofCandidateEvidence(data);
+  const projectStageEvidence = getProjectStageEvidence(data);
   
   // Contacts
   const contacts = Array.isArray(researchAppendix.contacts?.items) 
@@ -993,8 +1121,14 @@ const FinalBriefRenderer = ({ briefData }) => {
   
   const routeLabelsByContactIndex = buildContactRouteLabels(contacts, salesBrief.who_to_contact || {});
 
-  // Extract company name from briefData or data
-  const companyName = briefData.company_name || data.company_name || 'Company Brief';
+  // Extract display name from briefData or data
+  const briefDisplayInfo = getBriefDisplayInfo({
+    row: briefData,
+    parsedBrief: data,
+    fallbackName: briefData.company_name || data.company_name || 'Company Brief',
+    fallbackUrl: briefData.website
+  });
+  const companyName = briefDisplayInfo.displayName || 'Company Brief';
 
   return (
     <div className="space-y-8">
@@ -1022,6 +1156,8 @@ const FinalBriefRenderer = ({ briefData }) => {
           </Card>
         )}
       </div>
+
+      <ProjectStageSection stage={projectStageEvidence} />
 
       <RouteVisualizationSection cards={propertyRouteCards} />
 

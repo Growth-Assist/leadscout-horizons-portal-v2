@@ -19,6 +19,7 @@ import SignalsSection from '@/components/SignalsSection.jsx';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { getEcommerceSignalAudit } from '@/utils/briefDataExtractors.js';
+import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
 const getDecisionBadge = (decision) => {
   const lower = decision?.toLowerCase() || '';
@@ -116,10 +117,17 @@ const BriefDetailDrawer = ({
     final_brief_json: parsedBrief || targetData.final_brief_json
   } : null;
 
-  const displayName = targetData?.name || parsedBrief?.company_name || companyId || 'Loading...';
+  const briefDisplayInfo = getBriefDisplayInfo({
+    row: targetData || {},
+    parsedBrief,
+    fallbackName: targetData?.name || parsedBrief?.company_name || companyId || 'Loading...',
+    fallbackUrl: targetData?.website
+  });
+  const displayName = briefDisplayInfo.displayName || 'Loading...';
   const verdict = parsedBrief?.sales_brief?.verdict || {};
   const propertiesData = parsedBrief?.research_appendix?.properties?.properties;
-  const website = targetData?.website;
+  const website = briefDisplayInfo.displayUrl;
+  const websiteTitle = briefDisplayInfo.isPropertyLed ? 'Open in Google Maps' : 'Visit company website';
 
   const ecommerceAudit = getEcommerceSignalAudit({
     parsedBrief,
@@ -228,8 +236,8 @@ const BriefDetailDrawer = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 bg-muted rounded-full text-foreground hover:bg-primary hover:text-primary-foreground transition-colors shrink-0"
-                        title="Visit company website"
-                        aria-label="Visit company website"
+                        title={websiteTitle}
+                        aria-label={websiteTitle}
                       >
                         <ExternalLink className="h-5 w-5" />
                       </a>

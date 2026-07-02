@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLookupEvidenceCards, getOsRoofCandidateEvidence, getPropertyRouteCards } from './briefDataExtractors.js';
+import { getLookupEvidenceCards, getOsRoofCandidateEvidence, getProjectStageEvidence, getPropertyRouteCards } from './briefDataExtractors.js';
 
 const withEnrichment = (propertySignalEnrichment) => ({
   research: {
@@ -12,6 +12,84 @@ const yearsAgoDate = (yearsAgo) => {
   date.setUTCFullYear(date.getUTCFullYear() - yearsAgo);
   return date.toISOString().slice(0, 10);
 };
+
+describe('getProjectStageEvidence', () => {
+  it('normalizes project stage display fields', () => {
+    const stage = getProjectStageEvidence({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'planning_approved',
+          stage_label: 'Planning approved',
+          display_stage_key: 'planning',
+          display_stage_label: 'Planning',
+          display_context_label: 'Project Stage',
+          opportunity_mode: 'active_project',
+          opportunity_mode_label: 'Active project',
+          confidence: 'high',
+          reason: 'Planning approval found.',
+          evidence: 'Application status is approved.',
+          source_signals: ['planning portal', 'decision notice']
+        }
+      }
+    });
+
+    expect(stage).toEqual(expect.objectContaining({
+      stageKey: 'planning_approved',
+      stageLabel: 'Planning approved',
+      displayStageKey: 'planning',
+      displayStageLabel: 'Planning',
+      displayContextLabel: 'Project Stage',
+      opportunityMode: 'active_project',
+      opportunityModeLabel: 'Active project',
+      confidence: 'high',
+      reason: 'Planning approval found.',
+      evidence: 'Application status is approved.',
+      sourceSignals: ['planning portal', 'decision notice']
+    }));
+  });
+
+  it('returns null when project stage is missing', () => {
+    expect(getProjectStageEvidence({ research_appendix: {} })).toBeNull();
+  });
+
+  it('falls back to legacy stage fields when display fields are missing', () => {
+    const stage = getProjectStageEvidence({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'on_site',
+          stage_label: 'On site',
+          confidence: 'medium'
+        }
+      }
+    });
+
+    expect(stage).toEqual(expect.objectContaining({
+      stageKey: 'on_site',
+      stageLabel: 'On site',
+      displayStageKey: 'onsite',
+      displayStageLabel: 'On Site'
+    }));
+  });
+
+  it('keeps an unknown stage key without inferring from free text', () => {
+    const stage = getProjectStageEvidence({
+      research_appendix: {
+        project_stage: {
+          stage_key: 'awaiting_budget',
+          stage_label: 'Awaiting budget',
+          confidence: 'medium'
+        }
+      }
+    });
+
+    expect(stage).toEqual(expect.objectContaining({
+      stageKey: 'awaiting_budget',
+      stageLabel: 'Awaiting budget',
+      displayStageKey: 'awaiting_budget',
+      displayStageLabel: 'Awaiting budget'
+    }));
+  });
+});
 
 describe('getLookupEvidenceCards', () => {
   it('returns an occupier card when a candidate occupier is present', () => {
@@ -355,6 +433,66 @@ describe('getPropertyRouteCards', () => {
     }));
     expect(cards.some((card) => card.name === 'client_contact_routing')).toBe(false);
     expect(cards.some((card) => card.evidence === 'client_contact_routing')).toBe(false);
+  });
+
+  it('does not turn unnamed client contact routing fallback roles into route cards', () => {
+    const cards = getPropertyRouteCards({
+      property_led: true,
+      target_company_name: 'GOODDIES',
+      sales_brief: {
+        who_to_contact: {
+          fallback_route: {
+            name: '',
+            role: 'Director of Estates',
+            source: 'client_contact_routing'
+          },
+          likely_influencer: {
+            name: '',
+            role: 'Building Surveyor',
+            source: 'client_contact_routing'
+          }
+        }
+      },
+      research_appendix: {
+        property_signals: {
+          organisation_contact_routes: [],
+          related_organisations: []
+        }
+      }
+    });
+
+    expect(cards.find((card) => card.type === 'surveyor')).toEqual(expect.objectContaining({
+      name: '',
+      isEmpty: true
+    }));
+    expect(cards.find((card) => card.type === 'occupier')).toEqual(expect.objectContaining({
+      name: 'GOODDIES',
+      evidence: '',
+      isEmpty: false
+    }));
+    expect(cards.some((card) => card.name === 'Building Surveyor')).toBe(false);
+    expect(cards.some((card) => card.name === 'Director of Estates')).toBe(false);
+  });
+
+  it('uses candidate occupier before target company name for property-led occupier fallback', () => {
+    const cards = getPropertyRouteCards({
+      property_led: true,
+      target_company_name: 'Fallback Target Co',
+      research_appendix: {
+        property_signals: {
+          property: {
+            candidate_occupier: {
+              company_name: 'Known Site Operator'
+            }
+          }
+        }
+      }
+    });
+
+    expect(cards.find((card) => card.type === 'occupier')).toEqual(expect.objectContaining({
+      name: 'Known Site Operator',
+      isEmpty: false
+    }));
   });
 
   it('highlights the selected route when present', () => {
