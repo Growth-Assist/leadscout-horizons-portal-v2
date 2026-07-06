@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { renderEmailAsLink } from '@/utils/emailRenderer.js';
-import { getOsRoofCandidateEvidence, getProjectStageEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
+import { getOsRoofCandidateEvidence, getPartnershipFitEvidence, getProjectStageEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
 import { getContactRouteTypeLabel } from '@/utils/contactRouteTypes.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
@@ -154,7 +154,54 @@ const findTalkTrackField = (talkTrack, keys, labels = []) => {
   return '';
 };
 
-const buildBriefEmailDraft = ({ companyName, contact, salesBrief }) => {
+const hasOutreachDirective = (outreach, includeKey, textKey) => (
+  outreach
+  && (Object.prototype.hasOwnProperty.call(outreach, includeKey)
+    || Object.prototype.hasOwnProperty.call(outreach, textKey))
+);
+
+const interpolateOutreachTemplate = ({ template, companyName, contact }) => {
+  const firstName = getFirstName(getContactName(contact));
+  const contactName = getContactName(contact);
+  const contactRole = getContactRole(contact);
+  const safeCompanyName = companyName || 'your business';
+
+  return String(template || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, token) => {
+    const normalizedToken = token.toLowerCase();
+    const replacements = {
+      first_name: firstName,
+      firstname: firstName,
+      contact_first_name: firstName,
+      contact_name: contactName,
+      name: contactName,
+      contact_role: contactRole,
+      role: contactRole,
+      company_name: safeCompanyName,
+      company: safeCompanyName
+    };
+
+    return replacements[normalizedToken] || match;
+  }).trim();
+};
+
+const getOutreachTemplateText = (outreach, includeKey, textKey) => {
+  if (!hasOutreachDirective(outreach, includeKey, textKey)) return undefined;
+  if (outreach?.[includeKey] !== true) return '';
+  return String(outreach?.[textKey] || '').trim();
+};
+
+const buildBriefEmailDraft = ({ companyName, contact, salesBrief, outreach }) => {
+  const warmupTemplate = getOutreachTemplateText(outreach, 'include_warmup_email', 'warmup_email_text');
+  if (warmupTemplate !== undefined) {
+    if (!warmupTemplate) return null;
+
+    return {
+      to: getContactEmail(contact),
+      subject: `Quick question for ${companyName || 'your business'}`,
+      body: interpolateOutreachTemplate({ template: warmupTemplate, companyName, contact })
+    };
+  }
+
   const talkTrack = salesBrief?.recommended_angle_talk_track;
   const primaryAngle = findTalkTrackField(
     talkTrack,
@@ -210,9 +257,32 @@ const trimToLimit = (value, limit) => {
   return `${safeTruncated.trimEnd()}…`;
 };
 
-const buildBriefLinkedInDraft = ({ companyName, contact, salesBrief }) => {
+const trimTemplateToLimit = (value, limit) => {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length <= limit) return text;
+
+  const truncated = text.slice(0, limit - 1).trimEnd();
+  const lastSpace = truncated.lastIndexOf(' ');
+  const safeTruncated = lastSpace > limit * 0.6 ? truncated.slice(0, lastSpace) : truncated;
+  return `${safeTruncated.trimEnd()}…`;
+};
+
+const buildBriefLinkedInDraft = ({ companyName, contact, salesBrief, outreach }) => {
   const linkedin = getContactLinkedIn(contact);
   if (!linkedin) return null;
+
+  const linkedInTemplate = getOutreachTemplateText(outreach, 'include_linkedin_message', 'linkedin_message_text');
+  if (linkedInTemplate !== undefined) {
+    if (!linkedInTemplate) return null;
+
+    return {
+      profileUrl: linkedin,
+      message: trimTemplateToLimit(
+        interpolateOutreachTemplate({ template: linkedInTemplate, companyName, contact }),
+        LINKEDIN_MESSAGE_LIMIT
+      )
+    };
+  }
 
   const talkTrack = salesBrief?.recommended_angle_talk_track;
   const primaryAngle = findTalkTrackField(
@@ -332,6 +402,142 @@ const BulletList = ({ items }) => {
         <li key={i}>{typeof item === 'string' ? item : JSON.stringify(item)}</li>
       ))}
     </ul>
+  );
+};
+
+const toBriefTextItems = (items) => {
+  if (!items) return [];
+  const arr = Array.isArray(items) ? items : [items];
+  return arr.map(stringifyBriefValue).filter(Boolean);
+};
+
+const cleanWhyNowSignalText = (value) => String(value || '')
+  .replace(/\b(?:Trigger|Why it matters|Use in conversation):\s*/gi, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const WhyNowTriggerCard = ({ signal }) => (
+  <Card className="bg-card shadow-sm border-border">
+    <CardContent className="flex h-full gap-3 p-3">
+      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-green-500/80" />
+      <div className="min-w-0 space-y-1.5">
+        <Badge
+          variant="outline"
+          className="h-5 border-green-500/25 bg-green-500/10 px-2 text-[10px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400"
+        >
+          Trigger
+        </Badge>
+        <p className="text-sm leading-relaxed text-foreground">{signal}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const WhyNowSection = ({ items }) => {
+  const signals = toBriefTextItems(items);
+  if (signals.length === 0) return null;
+
+  const cleanedSignals = signals.map(cleanWhyNowSignalText).filter(Boolean);
+  if (cleanedSignals.length === 0) return null;
+
+  const visibleSignals = cleanedSignals.slice(0, 3);
+  const overflowSignals = cleanedSignals.slice(3);
+
+  return (
+    <Section title="Why Now">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {visibleSignals.map((signal, index) => (
+          <WhyNowTriggerCard key={`${signal}-${index}`} signal={signal} />
+        ))}
+      </div>
+
+      {overflowSignals.length > 0 && (
+        <Accordion type="single" collapsible className="rounded-xl border border-border bg-card shadow-sm">
+          <AccordionItem value="more-triggers" className="border-b-0">
+            <AccordionTrigger className="px-4 py-3 text-left hover:no-underline hover:text-primary">
+              <span className="text-sm font-semibold text-foreground">
+                More triggers ({overflowSignals.length})
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4 pt-1">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                {overflowSignals.map((signal, index) => (
+                  <WhyNowTriggerCard key={`${signal}-${index + 3}`} signal={signal} />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
+    </Section>
+  );
+};
+
+const normalizeTalkTrackKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const getTalkTrackObjectField = (talkTrack, keys) => {
+  if (!talkTrack || typeof talkTrack !== 'object' || Array.isArray(talkTrack)) return '';
+  const normalizedKeys = keys.map(normalizeTalkTrackKey);
+  const entry = Object.entries(talkTrack).find(([key]) => normalizedKeys.includes(normalizeTalkTrackKey(key)));
+  return entry ? stringifyBriefValue(entry[1]) : '';
+};
+
+const getTalkTrackFlowSteps = (talkTrack) => {
+  if (!talkTrack || typeof talkTrack !== 'object' || Array.isArray(talkTrack)) return [];
+
+  return [
+    {
+      key: 'primary-angle',
+      label: 'Primary angle',
+      value: getTalkTrackObjectField(talkTrack, ['primary_angle', 'primary angle', 'primaryAngle', 'primary'])
+    },
+    {
+      key: 'secondary-angle',
+      label: 'Secondary angle',
+      value: getTalkTrackObjectField(talkTrack, ['secondary_angle', 'secondary angle', 'secondaryAngle', 'secondary'])
+    },
+    {
+      key: 'discovery-hook',
+      label: 'Discovery hook',
+      value: getTalkTrackObjectField(talkTrack, ['discovery_hook', 'discovery hook', 'discoveryHook', 'hook'])
+    },
+    {
+      key: 'value-framing',
+      label: 'Value framing',
+      value: getTalkTrackObjectField(talkTrack, ['value_framing', 'value framing', 'valueFraming', 'value'])
+    }
+  ].filter((step) => step.value);
+};
+
+const TalkTrackFlowCard = ({ talkTrack }) => {
+  const steps = getTalkTrackFlowSteps(talkTrack);
+  const hasStructuredSteps = steps.length > 0;
+
+  return (
+    <Card className="bg-card shadow-sm border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">Recommended Angle & Talk Track</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {hasStructuredSteps ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {steps.map((step) => (
+              <div key={step.key} className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-3">
+                <Badge
+                  variant="outline"
+                  className="mb-2 border-primary/25 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wider text-primary"
+                >
+                  {step.label}
+                </Badge>
+                <p className="text-sm leading-relaxed text-foreground">{step.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <BulletList items={talkTrack} />
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -520,7 +726,7 @@ const RouteEvidenceCard = ({ card }) => {
 };
 
 const RouteVisualizationSection = ({ cards }) => {
-  if (!cards || cards.length === 0) return null;
+  if (!cards || cards.length === 0 || !cards.some((card) => !card.isEmpty)) return null;
 
   return (
     <Section title="Route Evidence">
@@ -529,6 +735,135 @@ const RouteVisualizationSection = ({ cards }) => {
           <RouteEvidenceCard key={`${card.type}-${index}`} card={card} />
         ))}
       </div>
+    </Section>
+  );
+};
+
+const PartnershipFitCard = ({ card }) => (
+  <Card className="bg-card shadow-sm border-border">
+    <CardContent className="p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+            {card.label}
+          </p>
+          <p className="mt-1 text-2xl font-semibold leading-none text-foreground">
+            {card.hasScore ? `${card.score}/${card.maxScore}` : `Not captured/${card.maxScore}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {card.evidenceLabel}
+        </p>
+        {card.evidence.length > 0 ? (
+          <ul className="space-y-1.5">
+            {card.evidence.map((item) => (
+              <li key={item} className="flex gap-2 text-sm leading-relaxed text-muted-foreground">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">No supporting evidence captured</p>
+        )}
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const getNumericBriefScore = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+const PartnershipFitSection = ({ fit, backendFitScore }) => {
+  if (!fit?.cards?.length) return null;
+
+  const backendScore = getNumericBriefScore(backendFitScore);
+  const componentTotal = fit.componentTotal;
+  const hasComponentTotal = componentTotal !== null;
+  const hasMismatch = hasComponentTotal && backendScore !== null && componentTotal !== backendScore;
+  const displayedTotal = hasMismatch ? backendScore : componentTotal;
+  const totalLabel = hasMismatch
+    ? `Total Fit Score: ${backendScore}/100`
+    : (hasComponentTotal
+    ? `Total Fit Score: ${fit.commercialScore} + ${fit.culturalScore} = ${displayedTotal}/100`
+    : `Total Fit Score: ${backendScore ?? 'Not captured'}/100`);
+
+  return (
+    <Section title="Partnership Fit">
+      <Card className="bg-card shadow-sm border-border">
+        <CardContent className="p-4 space-y-1.5">
+          <p className="text-sm font-semibold text-foreground">{totalLabel}</p>
+          {hasMismatch && import.meta.env.DEV && (
+            <p className="text-xs text-muted-foreground">
+              Component score total differs from backend fit_score; showing backend fit_score as source of truth.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        {fit.cards.map((card) => (
+          <PartnershipFitCard key={card.key} card={card} />
+        ))}
+      </div>
+    </Section>
+  );
+};
+
+const CollapsibleBriefSection = ({ value, title, items }) => (
+  <AccordionItem value={value} className="border-b border-border/50 last:border-b-0">
+    <AccordionTrigger className="px-4 py-3 text-left hover:no-underline hover:text-primary">
+      <span className="text-sm font-semibold text-foreground">{title}</span>
+    </AccordionTrigger>
+    <AccordionContent className="px-4 pb-4 pt-1">
+      <BulletList items={items} />
+    </AccordionContent>
+  </AccordionItem>
+);
+
+const SalesGuidanceSection = ({ salesBrief }) => {
+  const sections = [
+    {
+      value: 'discovery-questions',
+      title: 'Discovery Questions',
+      items: salesBrief.discovery_questions
+    },
+    {
+      value: 'objections-responses',
+      title: 'Objections & Responses',
+      items: salesBrief.objections_and_responses
+    },
+    {
+      value: 'suggested-openers',
+      title: 'Suggested Openers',
+      items: salesBrief.suggested_openers
+    },
+    {
+      value: 'next-best-action',
+      title: 'Next Best Action',
+      items: salesBrief.next_best_action
+    }
+  ].filter((section) => section.items);
+
+  if (sections.length === 0) return null;
+
+  return (
+    <Section title="Sales Guidance">
+      <Accordion type="multiple" className="w-full bg-card rounded-xl border border-border shadow-sm">
+        {sections.map((section) => (
+          <CollapsibleBriefSection
+            key={section.value}
+            value={section.value}
+            title={section.title}
+            items={section.items}
+          />
+        ))}
+      </Accordion>
     </Section>
   );
 };
@@ -656,9 +991,9 @@ const ProjectStageSection = ({ stage }) => {
   );
 };
 
-const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief }) => {
-  const emailDraft = buildBriefEmailDraft({ companyName, contact, salesBrief });
-  const linkedInDraft = buildBriefLinkedInDraft({ companyName, contact, salesBrief });
+const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief, outreach }) => {
+  const emailDraft = buildBriefEmailDraft({ companyName, contact, salesBrief, outreach });
+  const linkedInDraft = buildBriefLinkedInDraft({ companyName, contact, salesBrief, outreach });
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState(emailDraft?.subject || '');
   const [emailBody, setEmailBody] = useState(emailDraft?.body || '');
@@ -1109,10 +1444,12 @@ const FinalBriefRenderer = ({ briefData }) => {
   }
 
   const salesBrief = data.sales_brief || {};
+  const outreach = data.outreach || {};
   const researchAppendix = data.research_appendix || {};
   const propertyRouteCards = getPropertyRouteCards(data);
   const osRoofCandidateEvidence = getOsRoofCandidateEvidence(data);
   const projectStageEvidence = getProjectStageEvidence(data);
+  const partnershipFitEvidence = getPartnershipFitEvidence(data);
   
   // Contacts
   const contacts = Array.isArray(researchAppendix.contacts?.items) 
@@ -1129,6 +1466,22 @@ const FinalBriefRenderer = ({ briefData }) => {
     fallbackUrl: briefData.website
   });
   const companyName = briefDisplayInfo.displayName || 'Company Brief';
+  const isPropertyLedBrief = briefDisplayInfo.isPropertyLed === true;
+  const hasCompanyAppendix = researchAppendix.company && Object.keys(researchAppendix.company).length > 0;
+  const hasPropertyAppendix = isPropertyLedBrief
+    && researchAppendix.properties?.properties
+    && Array.isArray(researchAppendix.properties.properties)
+    && researchAppendix.properties.properties.length > 0;
+  const hasNewsAppendix = researchAppendix.news?.developments
+    && Array.isArray(researchAppendix.news.developments)
+    && researchAppendix.news.developments.length > 0;
+  const hasEventsAppendix = researchAppendix.events?.items
+    && Array.isArray(researchAppendix.events.items)
+    && researchAppendix.events.items.length > 0;
+  const hasVisibleResearchAppendix = hasCompanyAppendix
+    || hasPropertyAppendix
+    || hasNewsAppendix
+    || hasEventsAppendix;
 
   return (
     <div className="space-y-8">
@@ -1157,6 +1510,8 @@ const FinalBriefRenderer = ({ briefData }) => {
         )}
       </div>
 
+      <WhyNowSection items={salesBrief.why_now} />
+
       <ProjectStageSection stage={projectStageEvidence} />
 
       <RouteVisualizationSection cards={propertyRouteCards} />
@@ -1172,6 +1527,7 @@ const FinalBriefRenderer = ({ briefData }) => {
                 routeLabels={routeLabelsByContactIndex.get(i) || []}
                 companyName={companyName}
                 salesBrief={salesBrief}
+                outreach={outreach}
               />
             ))}
           </div>
@@ -1185,82 +1541,21 @@ const FinalBriefRenderer = ({ briefData }) => {
         )}
       </Section>
 
+      <PartnershipFitSection
+        fit={partnershipFitEvidence}
+        backendFitScore={briefData.fit_score ?? data.fit_score}
+      />
+
       <OsRoofCandidateSection evidence={osRoofCandidateEvidence} />
 
       {/* SALES BRIEF SECTIONS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* WHY NOW */}
-        {salesBrief.why_now && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Why Now</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BulletList items={salesBrief.why_now} />
-            </CardContent>
-          </Card>
-        )}
+      {salesBrief.recommended_angle_talk_track && (
+        <div>
+          <TalkTrackFlowCard talkTrack={salesBrief.recommended_angle_talk_track} />
+        </div>
+      )}
 
-        {/* RECOMMENDED ANGLE AND TALK TRACK */}
-        {salesBrief.recommended_angle_talk_track && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Recommended Angle & Talk Track</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BulletList items={salesBrief.recommended_angle_talk_track} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* DISCOVERY QUESTIONS */}
-        {salesBrief.discovery_questions && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Discovery Questions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BulletList items={salesBrief.discovery_questions} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* OBJECTIONS AND RESPONSES */}
-        {salesBrief.objections_and_responses && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Objections & Responses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BulletList items={salesBrief.objections_and_responses} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* SUGGESTED OPENER */}
-        {salesBrief.suggested_openers && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Suggested Openers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BulletList items={salesBrief.suggested_openers} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* NEXT BEST ACTION */}
-        {salesBrief.next_best_action && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Next Best Action</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BulletList items={salesBrief.next_best_action} />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <SalesGuidanceSection salesBrief={salesBrief} />
 
       {/* EVIDENCE SUMMARY */}
       {salesBrief.evidence_summary && (
@@ -1275,11 +1570,11 @@ const FinalBriefRenderer = ({ briefData }) => {
       )}
 
       {/* OPTIONAL RESEARCH APPENDIX */}
-      {Object.keys(researchAppendix).length > 0 && (
+      {hasVisibleResearchAppendix && (
         <Section title="Research Appendix" className="pt-6 border-t border-border">
           <Accordion type="single" collapsible className="w-full bg-card rounded-xl border border-border px-4 shadow-sm">
             
-            {researchAppendix.company && Object.keys(researchAppendix.company).length > 0 && (
+            {hasCompanyAppendix && (
               <AccordionItem value="company">
                 <AccordionTrigger className="hover:no-underline hover:text-primary">Company Info</AccordionTrigger>
                 <AccordionContent>
@@ -1299,7 +1594,7 @@ const FinalBriefRenderer = ({ briefData }) => {
               </AccordionItem>
             )}
 
-            {researchAppendix.properties?.properties && Array.isArray(researchAppendix.properties.properties) && (
+            {hasPropertyAppendix && (
               <AccordionItem value="properties">
                 <AccordionTrigger className="hover:no-underline hover:text-primary">Properties & Signals</AccordionTrigger>
                 <AccordionContent>
@@ -1386,7 +1681,7 @@ const FinalBriefRenderer = ({ briefData }) => {
               </AccordionItem>
             )}
 
-            {researchAppendix.news?.developments && Array.isArray(researchAppendix.news.developments) && researchAppendix.news.developments.length > 0 && (
+            {hasNewsAppendix && (
               <AccordionItem value="news">
                 <AccordionTrigger className="hover:no-underline hover:text-primary">News & Developments</AccordionTrigger>
                 <AccordionContent>
@@ -1399,7 +1694,7 @@ const FinalBriefRenderer = ({ briefData }) => {
               </AccordionItem>
             )}
 
-            {researchAppendix.events?.items && Array.isArray(researchAppendix.events.items) && researchAppendix.events.items.length > 0 && (
+            {hasEventsAppendix && (
               <AccordionItem value="events">
                 <AccordionTrigger className="hover:no-underline hover:text-primary">Events</AccordionTrigger>
                 <AccordionContent>

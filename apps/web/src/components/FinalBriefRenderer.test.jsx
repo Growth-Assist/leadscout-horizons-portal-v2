@@ -32,6 +32,326 @@ const capturedContactsSection = () => (
 
 const contactCardFor = (name) => within(capturedContactsSection()).getByText(name).closest('.bg-card');
 
+describe('FinalBriefRenderer sales guidance sections', () => {
+  it('renders sales guidance as collapsed accordion panels and keeps priority cards visible', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        why_now: ['A current growth signal makes timing relevant.'],
+        recommended_angle_talk_track: ['Lead with operational continuity.'],
+        discovery_questions: ['How are you qualifying new partnership conversations?'],
+        objections_and_responses: ['Already have a partner: focus on incremental reach.'],
+        suggested_openers: ['Noticed your recent community activation.'],
+        next_best_action: ['Start with the partnerships lead.']
+      }
+    }));
+
+    expect(screen.getByText('Why Now')).toBeInTheDocument();
+    expect(screen.getByText('A current growth signal makes timing relevant.')).toBeInTheDocument();
+    expect(screen.getByText('Recommended Angle & Talk Track')).toBeInTheDocument();
+    expect(screen.getByText('Lead with operational continuity.')).toBeInTheDocument();
+
+    expect(screen.getByRole('heading', { name: 'Sales Guidance' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discovery Questions' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Objections & Responses' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Suggested Openers' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next Best Action' })).toBeInTheDocument();
+
+    expect(screen.queryByText('How are you qualifying new partnership conversations?')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Discovery Questions' }));
+    expect(screen.getByText('How are you qualifying new partnership conversations?')).toBeInTheDocument();
+  });
+
+  it('does not render sales guidance when none of the collapsible fields exist', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        why_now: ['A current growth signal makes timing relevant.'],
+        recommended_angle_talk_track: ['Lead with operational continuity.']
+      }
+    }));
+
+    expect(screen.queryByRole('heading', { name: 'Sales Guidance' })).not.toBeInTheDocument();
+    expect(screen.getByText('Why Now')).toBeInTheDocument();
+    expect(screen.getByText('Recommended Angle & Talk Track')).toBeInTheDocument();
+  });
+
+  it('renders why now as visible trigger-style signal rows', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        why_now: [
+          'Trigger: Franklyn extended its Sale Sharks partnership. Why it matters: this indicates live sponsorship appetite.',
+          'Second trigger should be visible.',
+          'Third trigger should be visible.',
+          'Fourth trigger should be collapsed.'
+        ]
+      }
+    }));
+
+    expect(screen.getByText('Why Now')).toBeInTheDocument();
+    expect(screen.getAllByText('Trigger')).toHaveLength(3);
+    expect(screen.getByText('Franklyn extended its Sale Sharks partnership. this indicates live sponsorship appetite.')).toBeInTheDocument();
+    expect(screen.queryByText(/^Trigger: Franklyn extended/)).not.toBeInTheDocument();
+    expect(screen.getByText('Second trigger should be visible.')).toBeInTheDocument();
+    expect(screen.getByText('Third trigger should be visible.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /More triggers \(1\)/ })).toBeInTheDocument();
+    expect(screen.queryByText('Fourth trigger should be collapsed.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /More triggers \(1\)/ }));
+    expect(screen.getByText('Fourth trigger should be collapsed.')).toBeInTheDocument();
+  });
+
+  it('renders why now after executive summary and before captured contacts', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        why_now: ['A current growth signal makes timing relevant.']
+      },
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Jane Buyer',
+              role: 'Commercial Director'
+            }
+          ]
+        }
+      }
+    }));
+
+    const summaryHeading = screen.getByRole('heading', { name: 'Executive Summary' });
+    const whyNowHeading = screen.getByRole('heading', { name: 'Why Now' });
+    const contactsHeading = screen.getByRole('heading', { name: 'Captured Contacts' });
+    expect(
+      summaryHeading.compareDocumentPosition(whyNowHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      whyNowHeading.compareDocumentPosition(contactsHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('renders structured talk track fields as an ordered flow', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        recommended_angle_talk_track: {
+          primary_angle: 'Help a growing clinical network reduce downtime and service friction.',
+          secondary_angle: 'Support multi-site consistency across support, security and cloud.',
+          discovery_hook: 'Ask how they currently manage IT support across regional sites.',
+          value_framing: 'Present Gekko as a practical partner that improves reliability without adding workload.'
+        }
+      }
+    }));
+
+    expect(screen.getByText('Recommended Angle & Talk Track')).toBeInTheDocument();
+    expect(screen.getByText('Primary angle')).toBeInTheDocument();
+    expect(screen.getByText('Secondary angle')).toBeInTheDocument();
+    expect(screen.getByText('Discovery hook')).toBeInTheDocument();
+    expect(screen.getByText('Value framing')).toBeInTheDocument();
+    expect(screen.getByText('Help a growing clinical network reduce downtime and service friction.')).toBeInTheDocument();
+    expect(screen.getByText('Support multi-site consistency across support, security and cloud.')).toBeInTheDocument();
+    expect(screen.getByText('Ask how they currently manage IT support across regional sites.')).toBeInTheDocument();
+    expect(screen.getByText('Present Gekko as a practical partner that improves reliability without adding workload.')).toBeInTheDocument();
+  });
+
+  it('renders recommended angle and talk track after captured contacts', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        recommended_angle_talk_track: {
+          primary_angle: 'Lead with service reliability.'
+        }
+      },
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Jane Buyer',
+              role: 'Commercial Director'
+            }
+          ]
+        }
+      }
+    }));
+
+    const contactsHeading = screen.getByRole('heading', { name: 'Captured Contacts' });
+    const talkTrackTitle = screen.getByText('Recommended Angle & Talk Track');
+    expect(
+      contactsHeading.compareDocumentPosition(talkTrackTitle) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByText('Primary angle')).toBeInTheDocument();
+    expect(screen.getByText('Lead with service reliability.')).toBeInTheDocument();
+  });
+
+  it('omits missing structured talk track fields cleanly', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        recommended_angle_talk_track: {
+          primary_angle: 'Lead with service reliability.',
+          discovery_hook: 'Ask about current support response times.'
+        }
+      }
+    }));
+
+    expect(screen.getByText('Primary angle')).toBeInTheDocument();
+    expect(screen.getByText('Discovery hook')).toBeInTheDocument();
+    expect(screen.queryByText('Secondary angle')).not.toBeInTheDocument();
+    expect(screen.queryByText('Value framing')).not.toBeInTheDocument();
+    expect(screen.getByText('Lead with service reliability.')).toBeInTheDocument();
+    expect(screen.getByText('Ask about current support response times.')).toBeInTheDocument();
+  });
+
+  it('falls back to bullet rendering for unstructured talk tracks', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        recommended_angle_talk_track: ['Lead with operational continuity.']
+      }
+    }));
+
+    expect(screen.getByText('Recommended Angle & Talk Track')).toBeInTheDocument();
+    expect(screen.getByText('Lead with operational continuity.')).toBeInTheDocument();
+    expect(screen.queryByText('Primary angle')).not.toBeInTheDocument();
+  });
+});
+
+describe('FinalBriefRenderer partnership fit panel', () => {
+  it('renders Sale Sharks partnership fit scores and evidence after contact cards when present', () => {
+    renderBrief(baseBriefJson({
+      fit_score: 53,
+      research_appendix: {
+        scoring: {
+          commercial_fit_score: 32,
+          cultural_fit_score: 21,
+          commercial_fit_evidence: [
+            'Turnover +15 (revenue band indicates buying power for sponsorship).'
+          ],
+          cultural_fit_evidence: [
+            'North West identity and family business positioning support cultural fit.'
+          ]
+        },
+        contacts: {
+          items: [
+            {
+              name: 'Jane Buyer',
+              role: 'Commercial Director'
+            }
+          ]
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Partnership Fit' })).toBeInTheDocument();
+    expect(screen.getByText('Commercial Fit')).toBeInTheDocument();
+    expect(screen.getByText('Cultural Fit')).toBeInTheDocument();
+    expect(screen.getByText('Total Fit Score: 32 + 21 = 53/100')).toBeInTheDocument();
+    expect(screen.getByText('32/60')).toBeInTheDocument();
+    expect(screen.getByText('21/40')).toBeInTheDocument();
+    expect(screen.getByText('Why they can buy')).toBeInTheDocument();
+    expect(screen.getByText('Why they belong')).toBeInTheDocument();
+    expect(screen.getByText('Turnover +15 (revenue band indicates buying power for sponsorship).')).toBeInTheDocument();
+    expect(screen.getByText('North West identity and family business positioning support cultural fit.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Captured Contacts' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
+
+    const contactsHeading = screen.getByRole('heading', { name: 'Captured Contacts' });
+    const fitHeading = screen.getByRole('heading', { name: 'Partnership Fit' });
+    expect(
+      contactsHeading.compareDocumentPosition(fitHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('renders safely when scores are present but evidence arrays are empty', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        scoring: {
+          commercial_fit_score: 40,
+          cultural_fit_score: 30,
+          commercial_fit_evidence: [],
+          cultural_fit_evidence: []
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Partnership Fit' })).toBeInTheDocument();
+    expect(screen.getByText('40/60')).toBeInTheDocument();
+    expect(screen.getByText('30/40')).toBeInTheDocument();
+    expect(screen.getByText('Total Fit Score: 40 + 30 = 70/100')).toBeInTheDocument();
+    expect(screen.getAllByText('No supporting evidence captured')).toHaveLength(2);
+  });
+
+  it('does not render when partnership fit fields are absent', () => {
+    renderBrief(baseBriefJson());
+
+    expect(screen.queryByRole('heading', { name: 'Partnership Fit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
+  });
+});
+
+describe('FinalBriefRenderer research appendix property gating', () => {
+  const propertyAppendix = {
+    properties: {
+      properties: [
+        {
+          address: "St James's House, Congleton",
+          property_id: 'prop-1',
+          ownership_label: 'Leasehold'
+        }
+      ]
+    }
+  };
+
+  it('does not render property appendix content for non-property-led briefs', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: propertyAppendix
+    }));
+
+    expect(screen.queryByRole('heading', { name: 'Research Appendix' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Properties & Signals')).not.toBeInTheDocument();
+    expect(screen.queryByText("St James's House, Congleton")).not.toBeInTheDocument();
+  });
+
+  it('renders property appendix content for property-led briefs', () => {
+    renderBrief({
+      ...baseBriefJson({
+        research_appendix: propertyAppendix
+      }),
+      property_led: true,
+      research_appendix: propertyAppendix
+    });
+
+    expect(screen.getByText('Properties & Signals')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Properties & Signals' }));
+    expect(screen.getByText("St James's House, Congleton")).toBeInTheDocument();
+  });
+
+  it('keeps non-property appendix sections available for company-led briefs', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        ...propertyAppendix,
+        company: {
+          employee_count: '120'
+        },
+        news: {
+          developments: [
+            {
+              title: 'New regional expansion',
+              what: 'Opened a new office.'
+            }
+          ]
+        },
+        events: {
+          items: [
+            {
+              title: 'Industry forum',
+              what: 'Presented at the forum.'
+            }
+          ]
+        }
+      }
+    }));
+
+    expect(screen.queryByText('Properties & Signals')).not.toBeInTheDocument();
+    expect(screen.getByText('Company Info')).toBeInTheDocument();
+    expect(screen.getByText('News & Developments')).toBeInTheDocument();
+    expect(screen.getByText('Events')).toBeInTheDocument();
+  });
+});
+
 describe('FinalBriefRenderer project stage diagram', () => {
   it('renders the simplified project stage row after executive summary and before route evidence', () => {
     renderBrief(baseBriefJson({
@@ -66,13 +386,10 @@ describe('FinalBriefRenderer project stage diagram', () => {
 
     const summaryHeading = screen.getByRole('heading', { name: 'Executive Summary' });
     const projectHeading = screen.getByRole('heading', { name: 'Project Stage' });
-    const routeHeading = screen.getByRole('heading', { name: 'Route Evidence' });
     expect(
       summaryHeading.compareDocumentPosition(projectHeading) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
-    expect(
-      projectHeading.compareDocumentPosition(routeHeading) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
   });
 
   it('does not render the project stage diagram when project_stage is missing', () => {
@@ -232,12 +549,12 @@ describe('FinalBriefRenderer route evidence cards', () => {
     expect(screen.getByText('Jane Buyer')).toBeInTheDocument();
   });
 
-  it('renders blank route cards when route data is absent', () => {
+  it('does not render route evidence when route data is absent', () => {
     renderBrief(baseBriefJson());
 
     expect(screen.queryByRole('heading', { name: 'Lookup Evidence' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Route Evidence' })).toBeInTheDocument();
-    expect(screen.getAllByText('No route identified')).toHaveLength(6);
+    expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByText('No route identified')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Captured Contacts' })).toBeInTheDocument();
   });
 });
@@ -372,7 +689,7 @@ describe('FinalBriefRenderer contact routing badges', () => {
     expect(card.getByText('Owner')).toBeInTheDocument();
     expect(card.getByText('Primary buyer')).toBeInTheDocument();
     expect(card.getByText('Operations Director')).toBeInTheDocument();
-    expect(screen.getAllByText('No route identified')).toHaveLength(6);
+    expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
   });
 
   it('does not show a route type pill when the contact item has no route_type', () => {
@@ -608,6 +925,76 @@ describe('FinalBriefRenderer contact routing badges', () => {
 });
 
 describe('FinalBriefRenderer generated email drafts', () => {
+  it('uses backend warmup email text from the outreach block when included', () => {
+    renderBrief({
+      ...baseBriefJson({
+        sales_brief: {
+          recommended_angle_talk_track: {
+            primary_angle: 'fallback copy that should not appear',
+            discovery_hook: 'fallback discovery that should not appear'
+          }
+        },
+        research_appendix: {
+          contacts: {
+            items: [
+              {
+                name: 'Jane Buyer',
+                role: 'Operations Director',
+                email: 'jane@example.com'
+              }
+            ]
+          }
+        }
+      }),
+      outreach: {
+        include_warmup_email: true,
+        warmup_email_text: 'Hi {{first_name}},\n\nBackend-approved Sale Sharks warmup for {{company_name}}.\n\nBest,'
+      }
+    });
+
+    const card = within(contactCardFor('Jane Buyer'));
+    fireEvent.click(card.getByRole('button', { name: /generate email/i }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('To')).toHaveValue('jane@example.com');
+    const body = screen.getByLabelText('Body').value;
+    expect(body).toContain('Hi Jane,');
+    expect(body).toContain('Backend-approved Sale Sharks warmup for Acme Manufacturing.');
+    expect(body).not.toContain('fallback copy that should not appear');
+    expect(body).not.toContain('fallback discovery that should not appear');
+  });
+
+  it('does not show Generate email when outreach explicitly excludes warmup email', () => {
+    renderBrief({
+      ...baseBriefJson({
+        sales_brief: {
+          recommended_angle_talk_track: {
+            primary_angle: 'fallback copy that should not render',
+            discovery_hook: 'fallback discovery that should not render'
+          }
+        },
+        research_appendix: {
+          contacts: {
+            items: [
+              {
+                name: 'Jane Buyer',
+                role: 'Operations Director',
+                email: 'jane@example.com'
+              }
+            ]
+          }
+        }
+      }),
+      outreach: {
+        include_warmup_email: false,
+        warmup_email_text: 'This should not render.'
+      }
+    });
+
+    expect(screen.getByText('Jane Buyer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /generate email/i })).not.toBeInTheDocument();
+  });
+
   it('shows a Generate email action and opens an editable preview draft', () => {
     renderBrief(baseBriefJson({
       sales_brief: {
@@ -688,6 +1075,75 @@ describe('FinalBriefRenderer generated email drafts', () => {
 });
 
 describe('FinalBriefRenderer generated LinkedIn messages', () => {
+  it('uses backend LinkedIn message text from the outreach block when included', () => {
+    renderBrief({
+      ...baseBriefJson({
+        sales_brief: {
+          recommended_angle_talk_track: {
+            primary_angle: 'fallback LinkedIn copy that should not appear',
+            discovery_hook: 'fallback LinkedIn discovery that should not appear'
+          }
+        },
+        research_appendix: {
+          contacts: {
+            items: [
+              {
+                name: 'Jane Buyer',
+                role: 'Operations Director',
+                linkedin_url: 'https://www.linkedin.com/in/jane-buyer/'
+              }
+            ]
+          }
+        }
+      }),
+      outreach: {
+        include_linkedin_message: true,
+        linkedin_message_text: 'Hi {{first_name}}, backend-approved LinkedIn note for {{company_name}}.'
+      }
+    });
+
+    const card = within(contactCardFor('Jane Buyer'));
+    fireEvent.click(card.getByRole('button', { name: /generate linkedin/i }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('LinkedIn profile')).toHaveValue('https://www.linkedin.com/in/jane-buyer/');
+    const message = screen.getByLabelText('Message').value;
+    expect(message).toContain('Hi Jane, backend-approved LinkedIn note for Acme Manufacturing.');
+    expect(message).not.toContain('fallback LinkedIn copy that should not appear');
+    expect(message).not.toContain('fallback LinkedIn discovery that should not appear');
+  });
+
+  it('does not show Generate LinkedIn when outreach explicitly excludes LinkedIn message', () => {
+    renderBrief({
+      ...baseBriefJson({
+        sales_brief: {
+          recommended_angle_talk_track: {
+            primary_angle: 'fallback copy that should not render',
+            discovery_hook: 'fallback discovery that should not render'
+          }
+        },
+        research_appendix: {
+          contacts: {
+            items: [
+              {
+                name: 'Jane Buyer',
+                role: 'Operations Director',
+                linkedin_url: 'https://www.linkedin.com/in/jane-buyer/'
+              }
+            ]
+          }
+        }
+      }),
+      outreach: {
+        include_linkedin_message: false,
+        linkedin_message_text: 'This should not render.'
+      }
+    });
+
+    expect(screen.getByText('Jane Buyer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /generate linkedin/i })).not.toBeInTheDocument();
+  });
+
   it('shows a Generate LinkedIn message action and opens an editable preview message', () => {
     renderBrief(baseBriefJson({
       sales_brief: {

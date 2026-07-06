@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLookupEvidenceCards, getOsRoofCandidateEvidence, getProjectStageEvidence, getPropertyRouteCards } from './briefDataExtractors.js';
+import { getLookupEvidenceCards, getOsRoofCandidateEvidence, getPartnershipFitEvidence, getProjectStageEvidence, getPropertyRouteCards } from './briefDataExtractors.js';
 
 const withEnrichment = (propertySignalEnrichment) => ({
   research: {
@@ -12,6 +12,77 @@ const yearsAgoDate = (yearsAgo) => {
   date.setUTCFullYear(date.getUTCFullYear() - yearsAgo);
   return date.toISOString().slice(0, 10);
 };
+
+describe('getPartnershipFitEvidence', () => {
+  it('normalizes commercial and cultural fit scores and evidence', () => {
+    const fit = getPartnershipFitEvidence({
+      research_appendix: {
+        scoring: {
+          commercial_fit_score: 40,
+          cultural_fit_score: 30,
+          commercial_fit_evidence: ['Turnover +15 indicates buying power.'],
+          cultural_fit_evidence: ['North West identity supports cultural fit.']
+        }
+      }
+    });
+
+    expect(fit.cards).toEqual([
+      expect.objectContaining({
+        key: 'commercial',
+        label: 'Commercial Fit',
+        evidenceLabel: 'Why they can buy',
+        score: '40',
+        scoreValue: 40,
+        maxScore: 60,
+        hasScore: true,
+        evidence: ['Turnover +15 indicates buying power.']
+      }),
+      expect.objectContaining({
+        key: 'cultural',
+        label: 'Cultural Fit',
+        evidenceLabel: 'Why they belong',
+        score: '30',
+        scoreValue: 30,
+        maxScore: 40,
+        hasScore: true,
+        evidence: ['North West identity supports cultural fit.']
+      })
+    ]);
+    expect(fit).toEqual(expect.objectContaining({
+      commercialScore: '40',
+      culturalScore: '30',
+      commercialScoreValue: 40,
+      culturalScoreValue: 30,
+      componentTotal: 70
+    }));
+  });
+
+  it('returns cards when scores are present but evidence arrays are empty', () => {
+    const fit = getPartnershipFitEvidence({
+      research_appendix: {
+        scoring: {
+          commercial_fit_score: 40,
+          cultural_fit_score: 30,
+          commercial_fit_evidence: [],
+          cultural_fit_evidence: []
+        }
+      }
+    });
+
+    expect(fit.cards.every((card) => card.hasScore)).toBe(true);
+    expect(fit.cards.every((card) => card.evidence.length === 0)).toBe(true);
+  });
+
+  it('returns null when partnership fit scores are absent', () => {
+    expect(getPartnershipFitEvidence({
+      research_appendix: {
+        scoring: {
+          fit_score: 70
+        }
+      }
+    })).toBeNull();
+  });
+});
 
 describe('getProjectStageEvidence', () => {
   it('normalizes project stage display fields', () => {

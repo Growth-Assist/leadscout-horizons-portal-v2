@@ -134,7 +134,10 @@ const BriefDetailDrawer = ({
     final_brief_json: targetData?.final_brief_json
   });
 
-  const hasProperties = propertiesData && Array.isArray(propertiesData) && propertiesData.length > 0;
+  const hasProperties = briefDisplayInfo.isPropertyLed === true
+    && propertiesData
+    && Array.isArray(propertiesData)
+    && propertiesData.length > 0;
   const hasEcommerceAudit = !!ecommerceAudit;
   const hasResearchAppendices = hasProperties || hasEcommerceAudit;
 

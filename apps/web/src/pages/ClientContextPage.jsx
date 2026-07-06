@@ -52,6 +52,25 @@ import { cn } from '@/lib/utils.js';
 
 // --- Helper Functions ---
 
+const CLIENT_CONTEXT_STYLES = {
+  sectionHeading: 'text-xl font-semibold tracking-tight text-foreground',
+  cardShell: 'h-full overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm',
+  cardTitle: 'text-base font-semibold leading-tight text-foreground',
+  bodyText: 'text-sm leading-relaxed text-muted-foreground',
+  fieldLabel: 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
+  innerTile: 'rounded-lg border border-border/60 bg-muted/15 p-3',
+  pill: 'bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-muted-foreground'
+};
+
+const CLIENT_CONTEXT_ACCENT = 'bg-primary/10 text-primary border-primary/20';
+
+const SectionHeading = ({ icon: Icon, title }) => (
+  <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+    {Icon && <Icon className="h-5 w-5 text-primary" />}
+    <h3 className={CLIENT_CONTEXT_STYLES.sectionHeading}>{title}</h3>
+  </div>
+);
+
 const normalizeFieldName = (key) => {
   if (!key) return '';
   const normalized = key
@@ -116,7 +135,7 @@ const renderText = (text) => {
   }
 
   return (
-    <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap font-sans">
+    <div className={`${CLIENT_CONTEXT_STYLES.bodyText} whitespace-pre-wrap`}>
       {text}
     </div>
   );
@@ -151,7 +170,7 @@ const renderArray = (arr, depth = 0) => {
     <div className="mt-1">
       <div className="flex flex-wrap gap-2">
         {arr.map((item, i) => (
-          <Badge key={i} variant="secondary" className="bg-secondary/50 hover:bg-secondary/70 font-normal text-secondary-foreground px-2.5 py-0.5">
+          <Badge key={i} variant="secondary" className={CLIENT_CONTEXT_STYLES.pill}>
             {String(item)}
           </Badge>
         ))}
@@ -169,7 +188,7 @@ const renderObject = (obj, depth = 0) => {
     <div className="space-y-3 mt-2 pl-4 border-l-2 border-border/40">
       {Object.entries(obj).map(([k, v]) => (
         <div key={k} className="flex flex-col gap-1">
-          <span className="font-semibold text-sm text-foreground/90 block">
+          <span className="block text-sm font-semibold text-foreground">
             {normalizeFieldName(k)}
           </span>
           <div className="mt-0.5">
@@ -208,7 +227,7 @@ const renderValue = (val, depth = 0) => {
   if (typeof val === 'object') {
     return renderObject(val, depth);
   }
-  return <span className="text-sm text-muted-foreground">{String(val)}</span>;
+  return <span className={CLIENT_CONTEXT_STYLES.bodyText}>{String(val)}</span>;
 };
 
 // Formatter to render complex data as clean, readable text
@@ -389,9 +408,9 @@ const getStatusColor = (key, value) => {
 };
 
 const ContentPanel = ({ title, children, compact }) => (
-  <Card className="shadow-sm border-border/50 bg-card overflow-hidden h-full">
+  <Card className={CLIENT_CONTEXT_STYLES.cardShell}>
     <CardHeader className={cn("border-b border-border/50 bg-muted/10", compact ? "p-4" : "pb-4")}>
-      <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+      <CardTitle className={cn(CLIENT_CONTEXT_STYLES.cardTitle, "flex items-center gap-2")}>
         <FileText className="h-5 w-5 text-primary shrink-0" />
         {title}
       </CardTitle>
@@ -409,14 +428,123 @@ const StrategyCardGrid = ({ title, icon: Icon, children }) => {
   
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-        {Icon && <Icon className="h-5 w-5 text-primary" />}
-        <h3 className="text-xl font-semibold tracking-tight text-foreground">{title}</h3>
-      </div>
+      <SectionHeading icon={Icon} title={title} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
         {children}
       </div>
     </div>
+  );
+};
+
+const isStructuredActionValue = (value) => (
+  value
+  && typeof value === 'object'
+  && !Array.isArray(value)
+  && Object.keys(value).length > 0
+);
+
+const StructuredActionValue = ({ value }) => {
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => formatForActionCard(item).trim())
+      .filter(Boolean);
+
+    if (items.length === 0) {
+      return <span className="text-sm italic text-muted-foreground">Not provided</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, index) => (
+          <Badge
+            key={`${item}-${index}`}
+            variant="secondary"
+            className={CLIENT_CONTEXT_STYLES.pill}
+          >
+            {item}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+
+  if (value && typeof value === 'object') {
+    return (
+      <div className="space-y-2">
+        {Object.entries(value).map(([key, nestedValue]) => {
+          const text = formatForActionCard(nestedValue).trim();
+          if (!text) return null;
+
+          return (
+            <div key={key} className="space-y-1">
+              <p className={CLIENT_CONTEXT_STYLES.fieldLabel}>
+                {keyToLabel(key)}
+              </p>
+              <p className={`${CLIENT_CONTEXT_STYLES.bodyText} whitespace-pre-wrap`}>
+                {text}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const text = formatForActionCard(value).trim();
+  if (!text) return <span className="text-sm italic text-muted-foreground">Not provided</span>;
+
+  return <p className={`${CLIENT_CONTEXT_STYLES.bodyText} whitespace-pre-wrap`}>{text}</p>;
+};
+
+const StructuredActionCard = ({ icon: Icon, heading, value, accentColor = CLIENT_CONTEXT_ACCENT }) => {
+  const isContactRouting = String(heading || '').toLowerCase() === 'contact routing';
+  const sections = Object.entries(value || {})
+    .map(([key, sectionValue]) => ({ key, label: keyToLabel(key), value: sectionValue }))
+    .filter((section) => formatForActionCard(section.value).trim());
+
+  if (sections.length === 0) {
+    return (
+      <ActionCard
+        icon={Icon}
+        heading={heading}
+        content="Not provided."
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  return (
+    <Card className={cn(CLIENT_CONTEXT_STYLES.cardShell, isContactRouting && "md:col-span-2 lg:col-span-3")}>
+      <CardContent className="flex h-full flex-col gap-4 p-5">
+        <div className="flex items-center gap-3">
+          {Icon && (
+            <div className={cn("rounded-lg border p-2", accentColor)}>
+              <Icon className="h-5 w-5" />
+            </div>
+          )}
+          <h4 className={CLIENT_CONTEXT_STYLES.cardTitle}>
+            {heading}
+          </h4>
+        </div>
+
+        <div className={cn(
+          "grid grid-cols-1 gap-3",
+          isContactRouting ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2 lg:grid-cols-1"
+        )}>
+          {sections.map((section) => (
+            <div
+              key={section.key}
+              className={CLIENT_CONTEXT_STYLES.innerTile}
+            >
+              <p className={cn(CLIENT_CONTEXT_STYLES.fieldLabel, "mb-2 text-primary")}>
+                {section.label}
+              </p>
+              <StructuredActionValue value={section.value} />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -439,7 +567,7 @@ const ContextContactCard = ({ item }) => {
               <User className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="font-semibold text-foreground leading-tight">{name}</h4>
+              <h4 className={CLIENT_CONTEXT_STYLES.cardTitle}>{name}</h4>
               {role && <p className="text-sm text-muted-foreground mt-0.5">{role}</p>}
             </div>
           </div>
@@ -458,7 +586,7 @@ const ContextContactCard = ({ item }) => {
         </div>
 
         {description && (
-          <div className="text-sm text-muted-foreground leading-relaxed flex-1">
+          <div className={cn(CLIENT_CONTEXT_STYLES.bodyText, "flex-1")}>
             {description}
           </div>
         )}
@@ -872,10 +1000,7 @@ const ClientContextPage = () => {
                     {/* 3.25 COMPANY PROFILE SECTION */}
                     {parsedData.companyProfileData && (parsedData.companyProfileData.shortFields.length > 0 || parsedData.companyProfileData.longFields.length > 0) && (
                       <div className="space-y-6">
-                        <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                          <Briefcase className="h-5 w-5 text-primary" />
-                          <h3 className="text-xl font-semibold tracking-tight text-foreground">Company Profile</h3>
-                        </div>
+                        <SectionHeading icon={Briefcase} title="Company Profile" />
                         
                         {parsedData.companyProfileData.shortFields.length > 0 && (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -929,7 +1054,8 @@ const ClientContextPage = () => {
                             icon={MessageSquare}
                             heading="Core Positioning"
                             content={formatForActionCard(parsedData.topStrategies.corePositioning.value)}
-                            accentColor="bg-blue-500/10 text-blue-500 border-blue-500/20"
+                            accentColor={CLIENT_CONTEXT_ACCENT}
+                            collapsible
                           />
                         )}
                         {parsedData.topStrategies.outreachAngles && (
@@ -937,7 +1063,8 @@ const ClientContextPage = () => {
                             icon={Rocket}
                             heading="Sample Outreach Angles"
                             content={formatForActionCard(parsedData.topStrategies.outreachAngles.value)}
-                            accentColor="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            accentColor={CLIENT_CONTEXT_ACCENT}
+                            collapsible
                           />
                         )}
                         {parsedData.topStrategies.proposalStrategy && (
@@ -945,7 +1072,8 @@ const ClientContextPage = () => {
                             icon={CheckSquare}
                             heading="Proposal Strategy Context"
                             content={formatForActionCard(parsedData.topStrategies.proposalStrategy.value)}
-                            accentColor="bg-amber-500/10 text-amber-500 border-amber-500/20"
+                            accentColor={CLIENT_CONTEXT_ACCENT}
+                            collapsible
                           />
                         )}
                       </StrategyCardGrid>
@@ -990,21 +1118,23 @@ const ClientContextPage = () => {
                     {parsedData.actions.length > 0 && (
                       <StrategyCardGrid title="Strategic Insights" icon={Lightbulb}>
                         {parsedData.actions.map((item, idx) => {
-                          const accentColors = [
-                            "bg-purple-500/10 text-purple-500 border-purple-500/20",
-                            "bg-rose-500/10 text-rose-500 border-rose-500/20",
-                            "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-                            "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-                            "bg-orange-500/10 text-orange-500 border-orange-500/20",
-                          ];
-                          const color = accentColors[idx % accentColors.length];
+                          if (isStructuredActionValue(item.value)) {
+                            return (
+                              <StructuredActionCard
+                                key={item.key}
+                                heading={item.label}
+                                value={item.value}
+                                accentColor={CLIENT_CONTEXT_ACCENT}
+                              />
+                            );
+                          }
 
                           return (
                             <ActionCard
                               key={item.key}
                               heading={item.label}
                               content={formatForActionCard(item.value)}
-                              accentColor={color}
+                              accentColor={CLIENT_CONTEXT_ACCENT}
                             />
                           );
                         })}
@@ -1027,10 +1157,7 @@ const ClientContextPage = () => {
                       <div className="space-y-8">
                         {parsedData.contactGroups.map((group) => (
                           <div key={group.key} className="space-y-4">
-                            <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                              <Users className="h-5 w-5 text-primary" />
-                              <h3 className="text-xl font-semibold tracking-tight text-foreground">{group.label}</h3>
-                            </div>
+                            <SectionHeading icon={Users} title={group.label} />
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {group.items.map((item, idx) => (
                                 <ContextContactCard key={idx} item={item} />

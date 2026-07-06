@@ -1,6 +1,17 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Briefcase, Layers } from 'lucide-react';
+import { cn } from '@/lib/utils.js';
+
+const SERVICE_STYLES = {
+  sectionHeading: 'text-xl font-semibold tracking-tight text-foreground',
+  cardShell: 'h-full rounded-xl border border-border/50 bg-card p-5 shadow-sm transition-colors hover:border-primary/30',
+  cardTitle: 'text-base font-semibold leading-tight text-foreground',
+  bodyText: 'text-sm leading-relaxed text-muted-foreground',
+  fieldLabel: 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
+  innerTile: 'rounded-lg border border-border/60 bg-muted/15 p-3',
+  pill: 'inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground'
+};
 
 const keyToLabel = (key) => {
   if (!key) return '';
@@ -49,11 +60,11 @@ const renderNestedObject = (obj) => {
   if (entries.length === 0) return null;
 
   return (
-    <div className="border border-border/40 bg-muted/10 rounded-lg p-3 space-y-2 mt-1.5">
+    <div className={`${SERVICE_STYLES.innerTile} mt-1.5 space-y-2`}>
       {entries.map(([k, v]) => (
         <div key={k} className="text-xs flex flex-col gap-0.5">
-          <span className="font-medium text-foreground/80">{keyToLabel(k)}:</span>
-          <span className="text-muted-foreground whitespace-pre-wrap">
+          <span className={SERVICE_STYLES.fieldLabel}>{keyToLabel(k)}</span>
+          <span className="whitespace-pre-wrap text-muted-foreground">
             {isScalar(v) ? renderScalarValue(v) : (Array.isArray(v) ? 'Nested List' : 'Nested Data')}
           </span>
         </div>
@@ -65,8 +76,8 @@ const renderNestedObject = (obj) => {
 const ServiceCard = ({ item, categoryKey }) => {
   if (typeof item !== 'object' || item === null) {
     return (
-      <Card className="border border-border/50 bg-card rounded-xl p-5 shadow-sm h-full">
-        <h3 className="text-base font-semibold text-foreground">{String(item)}</h3>
+      <Card className={SERVICE_STYLES.cardShell}>
+        <h3 className={SERVICE_STYLES.cardTitle}>{String(item)}</h3>
       </Card>
     );
   }
@@ -121,18 +132,18 @@ const ServiceCard = ({ item, categoryKey }) => {
   const hasAdditionalFields = fitRes.value || engRes.value || remainingScalars.length > 0 || stringArrays.length > 0 || objectArrays.length > 0 || singleObjects.length > 0;
 
   return (
-    <Card className="border border-border/50 bg-card rounded-xl p-5 shadow-sm h-full flex flex-col hover:border-primary/30 transition-colors">
+    <Card className={`${SERVICE_STYLES.cardShell} flex flex-col`}>
       <div className="flex items-start gap-3 mb-3">
         <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
           <Briefcase className="h-5 w-5" />
         </div>
         <div className="mt-1">
-          <h3 className="font-semibold text-lg text-foreground leading-tight">{title}</h3>
+          <h3 className={SERVICE_STYLES.cardTitle}>{title}</h3>
         </div>
       </div>
       
       {description && (
-        <p className="text-sm text-muted-foreground leading-relaxed mb-5 whitespace-pre-wrap">
+        <p className={`${SERVICE_STYLES.bodyText} mb-5 whitespace-pre-wrap`}>
           {description}
         </p>
       )}
@@ -145,13 +156,13 @@ const ServiceCard = ({ item, categoryKey }) => {
             <div className="space-y-2">
               {fitRes.value && (
                 <div className="text-sm">
-                  <span className="font-medium text-foreground/90">{keyToLabel(fitRes.key || 'commercial_fit')}: </span>
+                  <span className="font-semibold text-foreground">{keyToLabel(fitRes.key || 'commercial_fit')}: </span>
                   <span className="text-muted-foreground">{renderScalarValue(fitRes.value)}</span>
                 </div>
               )}
               {engRes.value && (
                 <div className="text-sm">
-                  <span className="font-medium text-foreground/90">{keyToLabel(engRes.key || 'engagement_type')}: </span>
+                  <span className="font-semibold text-foreground">{keyToLabel(engRes.key || 'engagement_type')}: </span>
                   <span className="text-muted-foreground">{renderScalarValue(engRes.value)}</span>
                 </div>
               )}
@@ -163,7 +174,7 @@ const ServiceCard = ({ item, categoryKey }) => {
             <div className="space-y-2">
               {remainingScalars.map(({ key, value }) => (
                 <div key={key} className="text-sm">
-                  <span className="font-medium text-foreground/90">{keyToLabel(key)}: </span>
+                  <span className="font-semibold text-foreground">{keyToLabel(key)}: </span>
                   <span className="text-muted-foreground">{renderScalarValue(value)}</span>
                 </div>
               ))}
@@ -175,12 +186,12 @@ const ServiceCard = ({ item, categoryKey }) => {
             <div className="space-y-3">
               {stringArrays.map(({ key, value }) => (
                 <div key={key} className="text-sm">
-                  <div className="font-medium text-foreground/90 mb-1.5">{keyToLabel(key)}</div>
+                  <div className={cn(SERVICE_STYLES.fieldLabel, "mb-1.5")}>{keyToLabel(key)}</div>
                   <div className="flex flex-wrap gap-1.5">
                     {value.map((item, idx) => (
                       <span 
                         key={idx} 
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-secondary/20 text-secondary-foreground text-xs font-medium border border-secondary/30"
+                        className={SERVICE_STYLES.pill}
                       >
                         {String(item)}
                       </span>
@@ -196,7 +207,7 @@ const ServiceCard = ({ item, categoryKey }) => {
             <div className="space-y-3">
               {singleObjects.map(({ key, value }) => (
                 <div key={key} className="text-sm">
-                  <div className="font-medium text-foreground/90">{keyToLabel(key)}</div>
+                  <div className={SERVICE_STYLES.fieldLabel}>{keyToLabel(key)}</div>
                   {renderNestedObject(value)}
                 </div>
               ))}
@@ -208,7 +219,7 @@ const ServiceCard = ({ item, categoryKey }) => {
             <div className="space-y-3">
               {objectArrays.map(({ key, value }) => (
                 <div key={key} className="text-sm">
-                  <div className="font-medium text-foreground/90 mb-1.5">{keyToLabel(key)}</div>
+                  <div className={cn(SERVICE_STYLES.fieldLabel, "mb-1.5")}>{keyToLabel(key)}</div>
                   <div className="grid gap-2">
                     {value.map((obj, idx) => renderNestedObject(obj))}
                   </div>
@@ -232,7 +243,7 @@ const ServiceOfferingsSection = ({ value }) => {
     <div className="space-y-6">
       <div className="flex items-center gap-2 pb-2 border-b border-border/50">
         <Layers className="h-5 w-5 text-primary" />
-        <h3 className="text-xl font-semibold tracking-tight text-foreground">Service Offerings</h3>
+        <h3 className={SERVICE_STYLES.sectionHeading}>Service Offerings</h3>
       </div>
 
       {isArray ? (
@@ -249,7 +260,7 @@ const ServiceOfferingsSection = ({ value }) => {
             
             return (
               <div key={category} className="space-y-4">
-                <h4 className="text-lg font-medium text-foreground/90 flex items-center gap-2">
+                <h4 className="flex items-center gap-2 text-base font-semibold leading-tight text-foreground">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
                   {keyToLabel(category)}
                 </h4>

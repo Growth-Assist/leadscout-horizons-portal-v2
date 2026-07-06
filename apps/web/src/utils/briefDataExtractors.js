@@ -197,6 +197,71 @@ export function getProjectStageEvidence(finalBriefJson) {
   };
 }
 
+const hasScoreValue = (value) => value !== null && value !== undefined && cleanText(value) !== '';
+
+const getEvidenceItems = (value) => asArray(value)
+  .map(cleanText)
+  .filter(Boolean);
+
+const getNumericScore = (value) => {
+  if (!hasScoreValue(value)) return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
+
+/**
+ * Normalizes optional partnership fit scoring supplied by the backend.
+ *
+ * @param {Object} finalBriefJson - Parsed final brief JSON.
+ * @returns {null|{cards: Array<{key: string, label: string, evidenceLabel: string, score: string, hasScore: boolean, evidence: string[]}>}}
+ */
+export function getPartnershipFitEvidence(finalBriefJson) {
+  const scoring = finalBriefJson?.research_appendix?.scoring;
+  if (!scoring || typeof scoring !== 'object') return null;
+
+  const commercialScore = scoring.commercial_fit_score;
+  const culturalScore = scoring.cultural_fit_score;
+  const hasCommercialScore = hasScoreValue(commercialScore);
+  const hasCulturalScore = hasScoreValue(culturalScore);
+  const commercialScoreValue = getNumericScore(commercialScore);
+  const culturalScoreValue = getNumericScore(culturalScore);
+  const componentTotal = commercialScoreValue !== null && culturalScoreValue !== null
+    ? commercialScoreValue + culturalScoreValue
+    : null;
+
+  if (!hasCommercialScore && !hasCulturalScore) return null;
+
+  return {
+    commercialScore: cleanText(commercialScore),
+    culturalScore: cleanText(culturalScore),
+    commercialScoreValue,
+    culturalScoreValue,
+    componentTotal,
+    cards: [
+      {
+        key: 'commercial',
+        label: 'Commercial Fit',
+        evidenceLabel: 'Why they can buy',
+        score: cleanText(commercialScore),
+        scoreValue: commercialScoreValue,
+        maxScore: 60,
+        hasScore: hasCommercialScore,
+        evidence: getEvidenceItems(scoring.commercial_fit_evidence)
+      },
+      {
+        key: 'cultural',
+        label: 'Cultural Fit',
+        evidenceLabel: 'Why they belong',
+        score: cleanText(culturalScore),
+        scoreValue: culturalScoreValue,
+        maxScore: 40,
+        hasScore: hasCulturalScore,
+        evidence: getEvidenceItems(scoring.cultural_fit_evidence)
+      }
+    ]
+  };
+}
+
 const getFirstValue = (item, keys) => {
   for (const key of keys) {
     const value = cleanText(item?.[key]);
