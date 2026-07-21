@@ -17,11 +17,12 @@ import {
   ExternalLink,
   Calendar,
   Home,
+  Tags,
   Copy
 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { renderEmailAsLink } from '@/utils/emailRenderer.js';
-import { getOsRoofCandidateEvidence, getPartnershipFitEvidence, getProjectStageEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
+import { getOsRoofCandidateEvidence, getPartnershipFitEvidence, getPlanningApplicationEvidence, getProjectStageEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
 import { getContactRouteTypeLabel } from '@/utils/contactRouteTypes.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
@@ -405,6 +406,179 @@ const BulletList = ({ items }) => {
   );
 };
 
+const COMPANY_PRESENCE_FIELD_KEYS = new Set([
+  'company_presence_summary',
+  'headquarters_location',
+  'operating_locations',
+  'regional_presence_evidence',
+  'locations',
+  'registered_office_address',
+  'brand_portfolio',
+  'brand_portfolio_summary'
+]);
+
+const isPresentBriefValue = (value) => {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.map(stringifyBriefValue).some(Boolean);
+  return stringifyBriefValue(value).length > 0;
+};
+
+const toBriefValueList = (value) => {
+  if (value === null || value === undefined) return [];
+  const values = Array.isArray(value) ? value : [value];
+  return values.map(stringifyBriefValue).filter(Boolean);
+};
+
+const formatCompanyFieldLabel = (key) => key
+  .replace(/_/g, ' ')
+  .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const getCompanyPresenceRows = (company = {}) => ([
+  {
+    key: 'headquarters_location',
+    label: 'HQ / principal location',
+    value: company.headquarters_location,
+    list: false
+  },
+  {
+    key: 'operating_locations',
+    label: 'Operating locations',
+    value: company.operating_locations,
+    list: true
+  },
+  {
+    key: 'regional_presence_evidence',
+    label: 'Regional presence evidence',
+    value: company.regional_presence_evidence,
+    list: true
+  },
+  {
+    key: 'locations',
+    label: 'Other locations / served regions',
+    value: company.locations,
+    list: true
+  },
+  {
+    key: 'registered_office_address',
+    label: 'Registered office (legal address)',
+    value: company.registered_office_address,
+    list: false
+  }
+]).filter((row) => isPresentBriefValue(row.value));
+
+const CompanyPresenceBlock = ({ company }) => {
+  const rows = getCompanyPresenceRows(company);
+  const summary = getBriefFieldText(company?.company_presence_summary);
+  if (!summary && rows.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Home className="h-4 w-4 text-muted-foreground" />
+        <span>Company Presence</span>
+      </div>
+
+      {summary && (
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{summary}</p>
+      )}
+
+      {rows.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {rows.map((row) => {
+            const values = toBriefValueList(row.value);
+            return (
+              <div key={row.key} className="rounded-lg border border-border/50 bg-background/70 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {row.label}
+                </div>
+                {row.list ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-relaxed text-foreground">
+                    {values.map((value, index) => (
+                      <li key={`${row.key}-${index}`}>{value}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm leading-relaxed text-foreground">{values.join(', ')}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const formatBrandPortfolioLabel = (value) => String(value || '')
+  .replace(/_/g, ' ')
+  .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const getBrandPortfolioEntries = (company = {}) => {
+  const rawEntries = Array.isArray(company?.brand_portfolio) ? company.brand_portfolio : [];
+  return rawEntries
+    .filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry) => {
+      const name = getBriefFieldText(entry.name);
+      if (!name) return null;
+      const relationship = getBriefFieldText(entry.relationship);
+      const category = getBriefFieldText(entry.category);
+      return {
+        name,
+        relationship,
+        category,
+        evidence: getBriefFieldText(entry.evidence),
+        source: getBriefFieldText(entry.source),
+        metadata: [relationship, category].filter(Boolean).map(formatBrandPortfolioLabel).join(' · ')
+      };
+    })
+    .filter(Boolean);
+};
+
+const BrandPortfolioBlock = ({ company }) => {
+  const entries = getBrandPortfolioEntries(company);
+  const summary = getBriefFieldText(company?.brand_portfolio_summary);
+  if (!summary && entries.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Tags className="h-4 w-4 text-muted-foreground" />
+        <span>Brand Portfolio</span>
+      </div>
+
+      {summary && (
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{summary}</p>
+      )}
+
+      {entries.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {entries.map((entry, index) => (
+            <div key={`${entry.name}-${index}`} className="rounded-lg border border-border/50 bg-background/70 p-3">
+              <div className="text-sm font-semibold text-foreground">{entry.name}</div>
+              {entry.metadata && (
+                <div className="mt-1 text-xs font-medium text-muted-foreground">{entry.metadata}</div>
+              )}
+              {entry.evidence && (
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{entry.evidence}</p>
+              )}
+              {entry.source && (
+                <a
+                  href={entry.source}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Source <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const toBriefTextItems = (items) => {
   if (!items) return [];
   const arr = Array.isArray(items) ? items : [items];
@@ -603,68 +777,132 @@ const OsRoofCandidateSection = ({ evidence }) => {
   const roofConfidenceLevel = evidence.roofConfidence?.level;
 
   return (
-    <Section title="Property / Site Evidence">
-      <Card className="bg-card shadow-sm border-border">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
-                Property / Site Evidence
+    <Card className="bg-card shadow-sm border-border">
+      <CardContent className="p-5 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+              Property / Site Evidence
+            </p>
+            <h4 className="text-lg font-semibold leading-tight text-foreground">{evidence.title}</h4>
+            {evidence.nearestAddress && (
+              <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                {evidence.nearestAddress}
               </p>
-              <h4 className="text-lg font-semibold leading-tight text-foreground">{evidence.title}</h4>
-              {evidence.nearestAddress && (
-                <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-                  {evidence.nearestAddress}
-                </p>
-              )}
-            </div>
+            )}
+          </div>
 
-            {evidence.googleMapsUrl && (
+          {evidence.googleMapsUrl && (
+            <a
+              href={evidence.googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Verify on Google Maps
+            </a>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <EvidenceSignalTile
+            label="Footprint Area"
+            value={evidence.footprintArea}
+            badge={evidence.footprintArea ? evidence.roofSizeBand : null}
+          />
+          <EvidenceSignalTile
+            label="Building Age"
+            value={evidence.buildingAge}
+            badge={evidence.buildingAge ? evidence.buildingAgeBand : null}
+          />
+          {roofConfidenceLabel && (
+            <EvidenceSignalTile
+              label="Roof Confidence"
+              value={evidence.roofConfidence?.caveat}
+              badge={{
+                key: roofConfidenceLevel,
+                label: roofConfidenceLabel,
+                className: getConfidenceColor(roofConfidenceLevel)
+              }}
+            />
+          )}
+          <EvidenceSignalTile
+            label="Roof Evidence Date"
+            value={evidence.roofEvidenceDate}
+            badge={evidence.roofEvidenceDate ? evidence.roofEvidenceDateBand : null}
+          />
+          {evidence.osid && (
+            <MiniTile label="OSID" value={evidence.osid} />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const PlanningApplicationSection = ({ evidence }) => {
+  if (!evidence) return null;
+
+  return (
+    <Card className="bg-card shadow-sm border-border">
+      <CardContent className="p-5 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+              Property / Site Evidence
+            </p>
+            <h4 className="text-lg font-semibold leading-tight text-foreground">{evidence.title}</h4>
+            {evidence.proposal && (
+              <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                {evidence.proposal}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={evidence.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open planning record
+            </a>
+            {evidence.documentsUrl && (
               <a
-                href={evidence.googleMapsUrl}
+                href={evidence.documentsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted hover:underline"
               >
                 <ExternalLink className="h-4 w-4" />
-                Verify on Google Maps
+                View documents
               </a>
             )}
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <EvidenceSignalTile
-              label="Footprint Area"
-              value={evidence.footprintArea}
-              badge={evidence.footprintArea ? evidence.roofSizeBand : null}
-            />
-            <EvidenceSignalTile
-              label="Building Age"
-              value={evidence.buildingAge}
-              badge={evidence.buildingAge ? evidence.buildingAgeBand : null}
-            />
-            {roofConfidenceLabel && (
-              <EvidenceSignalTile
-                label="Roof Confidence"
-                value={evidence.roofConfidence?.caveat}
-                badge={{
-                  key: roofConfidenceLevel,
-                  label: roofConfidenceLabel,
-                  className: getConfidenceColor(roofConfidenceLevel)
-                }}
-              />
-            )}
-            <EvidenceSignalTile
-              label="Roof Evidence Date"
-              value={evidence.roofEvidenceDate}
-              badge={evidence.roofEvidenceDate ? evidence.roofEvidenceDateBand : null}
-            />
-            {evidence.osid && (
-              <MiniTile label="OSID" value={evidence.osid} />
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MiniTile label="Reference" value={evidence.reference} />
+          <MiniTile label="Status" value={evidence.status} />
+          <MiniTile label="Authority" value={evidence.authority} />
+          <MiniTile label="Source" value={evidence.sourceLabel} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const PropertySiteEvidenceSection = ({ osRoofEvidence, planningEvidence }) => {
+  if (!osRoofEvidence && !planningEvidence) return null;
+
+  return (
+    <Section title="Property / Site Evidence">
+      <div className="space-y-4">
+        <OsRoofCandidateSection evidence={osRoofEvidence} />
+        <PlanningApplicationSection evidence={planningEvidence} />
+      </div>
     </Section>
   );
 };
@@ -739,10 +977,10 @@ const RouteVisualizationSection = ({ cards }) => {
   );
 };
 
-const PartnershipFitCard = ({ card }) => (
-  <Card className="bg-card shadow-sm border-border">
-    <CardContent className="p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
+const PartnershipFitAccordionItem = ({ card }) => (
+  <AccordionItem value={card.key} className="rounded-xl border border-border bg-card px-4 shadow-sm">
+    <AccordionTrigger className="py-4 text-left hover:no-underline hover:text-primary">
+      <div className="flex w-full items-center justify-between gap-4 pr-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
             {card.label}
@@ -751,14 +989,18 @@ const PartnershipFitCard = ({ card }) => (
             {card.hasScore ? `${card.score}/${card.maxScore}` : `Not captured/${card.maxScore}`}
           </p>
         </div>
+        <span className="shrink-0 rounded-full border border-border bg-muted/20 px-3 py-1 text-xs font-semibold text-muted-foreground">
+          View evidence
+        </span>
       </div>
-
-      <div className="space-y-2">
+    </AccordionTrigger>
+    <AccordionContent className="pb-4 pt-0">
+      <div className="border-t border-border/60 pt-4">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {card.evidenceLabel}
         </p>
         {card.evidence.length > 0 ? (
-          <ul className="space-y-1.5">
+          <ul className="mt-2 space-y-1.5">
             {card.evidence.map((item) => (
               <li key={item} className="flex gap-2 text-sm leading-relaxed text-muted-foreground">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
@@ -767,50 +1009,23 @@ const PartnershipFitCard = ({ card }) => (
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No supporting evidence captured</p>
+          <p className="mt-2 text-sm text-muted-foreground">No supporting evidence captured</p>
         )}
       </div>
-    </CardContent>
-  </Card>
+    </AccordionContent>
+  </AccordionItem>
 );
 
-const getNumericBriefScore = (value) => {
-  if (value === null || value === undefined || value === '') return null;
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
-};
-
-const PartnershipFitSection = ({ fit, backendFitScore }) => {
+const PartnershipFitSection = ({ fit }) => {
   if (!fit?.cards?.length) return null;
-
-  const backendScore = getNumericBriefScore(backendFitScore);
-  const componentTotal = fit.componentTotal;
-  const hasComponentTotal = componentTotal !== null;
-  const hasMismatch = hasComponentTotal && backendScore !== null && componentTotal !== backendScore;
-  const displayedTotal = hasMismatch ? backendScore : componentTotal;
-  const totalLabel = hasMismatch
-    ? `Total Fit Score: ${backendScore}/100`
-    : (hasComponentTotal
-    ? `Total Fit Score: ${fit.commercialScore} + ${fit.culturalScore} = ${displayedTotal}/100`
-    : `Total Fit Score: ${backendScore ?? 'Not captured'}/100`);
 
   return (
     <Section title="Partnership Fit">
-      <Card className="bg-card shadow-sm border-border">
-        <CardContent className="p-4 space-y-1.5">
-          <p className="text-sm font-semibold text-foreground">{totalLabel}</p>
-          {hasMismatch && import.meta.env.DEV && (
-            <p className="text-xs text-muted-foreground">
-              Component score total differs from backend fit_score; showing backend fit_score as source of truth.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <Accordion type="multiple" className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {fit.cards.map((card) => (
-          <PartnershipFitCard key={card.key} card={card} />
+          <PartnershipFitAccordionItem key={card.key} card={card} />
         ))}
-      </div>
+      </Accordion>
     </Section>
   );
 };
@@ -1448,6 +1663,7 @@ const FinalBriefRenderer = ({ briefData }) => {
   const researchAppendix = data.research_appendix || {};
   const propertyRouteCards = getPropertyRouteCards(data);
   const osRoofCandidateEvidence = getOsRoofCandidateEvidence(data);
+  const planningApplicationEvidence = getPlanningApplicationEvidence(data);
   const projectStageEvidence = getProjectStageEvidence(data);
   const partnershipFitEvidence = getPartnershipFitEvidence(data);
   
@@ -1468,6 +1684,11 @@ const FinalBriefRenderer = ({ briefData }) => {
   const companyName = briefDisplayInfo.displayName || 'Company Brief';
   const isPropertyLedBrief = briefDisplayInfo.isPropertyLed === true;
   const hasCompanyAppendix = researchAppendix.company && Object.keys(researchAppendix.company).length > 0;
+  const genericCompanyEntries = hasCompanyAppendix
+    ? Object.entries(researchAppendix.company).filter(([key, value]) => (
+      !COMPANY_PRESENCE_FIELD_KEYS.has(key) && isPresentBriefValue(value)
+    ))
+    : [];
   const hasPropertyAppendix = isPropertyLedBrief
     && researchAppendix.properties?.properties
     && Array.isArray(researchAppendix.properties.properties)
@@ -1541,12 +1762,12 @@ const FinalBriefRenderer = ({ briefData }) => {
         )}
       </Section>
 
-      <PartnershipFitSection
-        fit={partnershipFitEvidence}
-        backendFitScore={briefData.fit_score ?? data.fit_score}
-      />
+      <PartnershipFitSection fit={partnershipFitEvidence} />
 
-      <OsRoofCandidateSection evidence={osRoofCandidateEvidence} />
+      <PropertySiteEvidenceSection
+        osRoofEvidence={osRoofCandidateEvidence}
+        planningEvidence={planningApplicationEvidence}
+      />
 
       {/* SALES BRIEF SECTIONS */}
       {salesBrief.recommended_angle_talk_track && (
@@ -1579,13 +1800,16 @@ const FinalBriefRenderer = ({ briefData }) => {
                 <AccordionTrigger className="hover:no-underline hover:text-primary">Company Info</AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-4 text-sm">
-                    {Object.entries(researchAppendix.company).map(([key, val]) => (
+                    <CompanyPresenceBlock company={researchAppendix.company} />
+                    <BrandPortfolioBlock company={researchAppendix.company} />
+
+                    {genericCompanyEntries.map(([key, val]) => (
                       <div key={key}>
-                        <span className="font-semibold capitalize text-foreground mr-2">
-                          {key.replace(/_/g, ' ')}:
+                        <span className="font-semibold text-foreground mr-2">
+                          {formatCompanyFieldLabel(key)}:
                         </span>
                         <span className="text-muted-foreground">
-                          {typeof val === 'string' ? val : JSON.stringify(val)}
+                          {toBriefValueList(val).join(', ')}
                         </span>
                       </div>
                     ))}

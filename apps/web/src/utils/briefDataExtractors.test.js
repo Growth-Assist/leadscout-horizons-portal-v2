@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLookupEvidenceCards, getOsRoofCandidateEvidence, getPartnershipFitEvidence, getProjectStageEvidence, getPropertyRouteCards } from './briefDataExtractors.js';
+import { getLookupEvidenceCards, getOsRoofCandidateEvidence, getPartnershipFitEvidence, getPlanningApplicationEvidence, getProjectStageEvidence, getPropertyRouteCards } from './briefDataExtractors.js';
 
 const withEnrichment = (propertySignalEnrichment) => ({
   research: {
@@ -374,8 +374,24 @@ describe('getLookupEvidenceCards', () => {
 });
 
 describe('getPropertyRouteCards', () => {
-  it('returns six cards in the stable route order', () => {
-    const cards = getPropertyRouteCards({});
+  it('returns no cards for non-property-led briefs', () => {
+    const cards = getPropertyRouteCards({
+      sales_brief: {
+        who_to_contact: {
+          primary_buyer: {
+            name: 'Ben Preston',
+            role: 'Financial Adviser',
+            source: 'contact'
+          }
+        }
+      }
+    });
+
+    expect(cards).toEqual([]);
+  });
+
+  it('returns six cards in the stable route order for property-led briefs', () => {
+    const cards = getPropertyRouteCards({ property_led: true });
 
     expect(cards.map((card) => card.type)).toEqual([
       'contractor',
@@ -391,6 +407,7 @@ describe('getPropertyRouteCards', () => {
 
   it('normalizes present routes from organisation contact routes', () => {
     const cards = getPropertyRouteCards({
+      property_led: true,
       research_appendix: {
         property_signals: {
           organisation_contact_routes: [
@@ -429,6 +446,7 @@ describe('getPropertyRouteCards', () => {
 
   it('normalizes routes from related organisations', () => {
     const cards = getPropertyRouteCards({
+      property_led: true,
       research_appendix: {
         property_signals: {
           related_organisations: [
@@ -452,6 +470,7 @@ describe('getPropertyRouteCards', () => {
 
   it('returns blank placeholder cards for absent route types', () => {
     const cards = getPropertyRouteCards({
+      property_led: true,
       research_appendix: {
         property_signals: {
           organisation_contact_routes: [
@@ -475,6 +494,7 @@ describe('getPropertyRouteCards', () => {
 
   it('does not expose client_contact_routing as route evidence', () => {
     const cards = getPropertyRouteCards({
+      property_led: true,
       research_appendix: {
         property_signals: {
           organisation_contact_routes: [
@@ -566,8 +586,30 @@ describe('getPropertyRouteCards', () => {
     }));
   });
 
+  it('uses who_to_contact as supporting route data for property-led briefs', () => {
+    const cards = getPropertyRouteCards({
+      property_led: true,
+      sales_brief: {
+        who_to_contact: {
+          primary_buyer: {
+            name: 'Sarah Surveyor',
+            role: 'Building Surveyor',
+            source: 'contact'
+          }
+        }
+      }
+    });
+
+    expect(cards.find((card) => card.type === 'surveyor')).toEqual(expect.objectContaining({
+      name: 'Sarah Surveyor',
+      evidence: 'contact',
+      isEmpty: false
+    }));
+  });
+
   it('highlights the selected route when present', () => {
     const cards = getPropertyRouteCards({
+      property_led: true,
       research_appendix: {
         contacts: {
           selected_contact_route: 'asset manager',
@@ -593,6 +635,7 @@ describe('getPropertyRouteCards', () => {
 
   it('preserves selected route reason as evidence without an organisation', () => {
     const cards = getPropertyRouteCards({
+      property_led: true,
       research_appendix: {
         contacts: {
           selected_contact_route: 'building surveyor',
@@ -607,6 +650,67 @@ describe('getPropertyRouteCards', () => {
       isSelected: true,
       isEmpty: false
     }));
+  });
+});
+
+describe('getPlanningApplicationEvidence', () => {
+  it('prefers the council planning record URL when present', () => {
+    expect(getPlanningApplicationEvidence({
+      research_appendix: {
+        property_signals: {
+          planning_application_context: {
+            application_reference: '26/12671/LB',
+            status: 'Pending consideration',
+            authority: 'Bristol, City of LPA',
+            proposal: 'Elevation and roof repairs.',
+            council_url: 'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?keyVal=TH6UXADNHHK00&activeTab=summary',
+            application_url: 'https://app.searchland.co.uk/?planningId=252_26%2F12671%2FLB',
+            supporting_documents_url: 'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?activeTab=documents&keyVal=TH6UXADNHHK00'
+          }
+        }
+      }
+    })).toEqual(expect.objectContaining({
+      title: 'Planning Application',
+      reference: '26/12671/LB',
+      status: 'Pending consideration',
+      authority: 'Bristol, City of LPA',
+      proposal: 'Elevation and roof repairs.',
+      url: 'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?keyVal=TH6UXADNHHK00&activeTab=summary',
+      sourceLabel: 'Council planning record',
+      documentsUrl: 'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?activeTab=documents&keyVal=TH6UXADNHHK00'
+    }));
+  });
+
+  it('falls back through planning source URLs when no council URL is present', () => {
+    expect(getPlanningApplicationEvidence({
+      research_appendix: {
+        property_signals: {
+          planning_application_context: {
+            full_proposal: 'Full proposal text.',
+            searchland_url: 'https://app.searchland.co.uk/?planningId=252_26%2F12671%2FLB',
+            source_page: 'https://example.com/source'
+          }
+        }
+      }
+    })).toEqual(expect.objectContaining({
+      proposal: 'Full proposal text.',
+      url: 'https://app.searchland.co.uk/?planningId=252_26%2F12671%2FLB',
+      sourceLabel: 'Planning source',
+      documentsUrl: ''
+    }));
+  });
+
+  it('returns null when planning context is missing or has no usable URL', () => {
+    expect(getPlanningApplicationEvidence({ research_appendix: {} })).toBeNull();
+    expect(getPlanningApplicationEvidence({
+      research_appendix: {
+        property_signals: {
+          planning_application_context: {
+            application_reference: '26/12671/LB'
+          }
+        }
+      }
+    })).toBeNull();
   });
 });
 
@@ -647,8 +751,8 @@ describe('getOsRoofCandidateEvidence', () => {
       },
       roofEvidenceDate: '2025-07-12',
       roofEvidenceDateBand: expect.objectContaining({
-        key: 'strong',
-        label: 'Fresh evidence'
+        key: 'good',
+        label: 'Recent evidence'
       }),
       googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=53.433,-2.165',
       osid: 'osgb123'
@@ -776,8 +880,8 @@ describe('getOsRoofCandidateEvidence', () => {
       },
       roofEvidenceDate: '2025-07-12',
       roofEvidenceDateBand: expect.objectContaining({
-        key: 'strong',
-        label: 'Fresh evidence'
+        key: 'good',
+        label: 'Recent evidence'
       }),
       googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=53.4332091,-2.1653957'
     }));

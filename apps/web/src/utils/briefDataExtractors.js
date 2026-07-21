@@ -728,9 +728,14 @@ const getWhoToContactRoutes = (whoToContact) => {
     }));
 };
 
+const isPropertyLedBrief = (finalBriefJson) => (
+  finalBriefJson?.property_led === true
+  || finalBriefJson?.metadata?.property_led === true
+  || Boolean(finalBriefJson?.property_id || finalBriefJson?.metadata?.property_id)
+);
+
 const getPropertyLedOccupierName = (finalBriefJson) => {
-  const isPropertyLed = finalBriefJson?.property_led === true || finalBriefJson?.metadata?.property_led === true;
-  if (!isPropertyLed) return '';
+  if (!isPropertyLedBrief(finalBriefJson)) return '';
 
   return cleanText(finalBriefJson?.research_appendix?.property_signals?.property?.candidate_occupier?.company_name)
     || cleanText(finalBriefJson?.research?.property_signal_enrichment?.property?.candidate_occupier?.company_name)
@@ -812,12 +817,49 @@ export function getOsRoofCandidateEvidence(finalBriefJson) {
 }
 
 /**
+ * Normalizes planning application evidence for the final brief property/site section.
+ *
+ * @param {Object} finalBriefJson - Parsed final brief JSON.
+ * @returns {null|{title: string, reference: string, status: string, authority: string, proposal: string, url: string, sourceLabel: string, documentsUrl: string}}
+ */
+export function getPlanningApplicationEvidence(finalBriefJson) {
+  const context = finalBriefJson?.research_appendix?.property_signals?.planning_application_context;
+  if (!context || typeof context !== 'object') return null;
+
+  const urlCandidates = [
+    ['council_url', context.council_url],
+    ['application_url', context.application_url],
+    ['supporting_documents_url', context.supporting_documents_url],
+    ['searchland_url', context.searchland_url],
+    ['source_page', context.source_page]
+  ];
+  const [selectedKey, selectedValue] = urlCandidates.find(([, value]) => getFirstUrl(value)) || [];
+  const url = getFirstUrl(selectedValue);
+  if (!url) return null;
+
+  const documentsUrl = getFirstUrl(context.supporting_documents_url);
+
+  return {
+    title: 'Planning Application',
+    reference: cleanText(context.application_reference),
+    status: cleanText(context.status || context.decision),
+    authority: cleanText(context.authority),
+    proposal: cleanText(context.proposal || context.full_proposal),
+    url,
+    sourceLabel: selectedKey === 'council_url' ? 'Council planning record' : 'Planning source',
+    documentsUrl: documentsUrl && documentsUrl !== url ? documentsUrl : ''
+  };
+}
+
+/**
  * Normalizes property/contact route evidence into six stable route cards.
  *
  * @param {Object} finalBriefJson - Parsed final brief JSON.
  * @returns {Array<{type: string, label: string, name: string, confidence: string, evidence: string, isSelected: boolean, isEmpty: boolean}>}
  */
 export function getPropertyRouteCards(finalBriefJson) {
+  if (!isPropertyLedBrief(finalBriefJson)) return [];
+
   const cardsByType = new Map(ROUTE_TYPES.map((routeType) => [
     routeType.type,
     makeEmptyRouteCard(routeType)

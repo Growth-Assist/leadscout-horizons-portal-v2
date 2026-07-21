@@ -238,12 +238,20 @@ describe('FinalBriefRenderer partnership fit panel', () => {
     expect(screen.getByRole('heading', { name: 'Partnership Fit' })).toBeInTheDocument();
     expect(screen.getByText('Commercial Fit')).toBeInTheDocument();
     expect(screen.getByText('Cultural Fit')).toBeInTheDocument();
-    expect(screen.getByText('Total Fit Score: 32 + 21 = 53/100')).toBeInTheDocument();
+    expect(screen.queryByText(/Total Fit Score/i)).not.toBeInTheDocument();
     expect(screen.getByText('32/60')).toBeInTheDocument();
     expect(screen.getByText('21/40')).toBeInTheDocument();
+    expect(screen.queryByText('Why they can buy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Why they belong')).not.toBeInTheDocument();
+    expect(screen.queryByText('Turnover +15 (revenue band indicates buying power for sponsorship).')).not.toBeInTheDocument();
+    expect(screen.queryByText('North West identity and family business positioning support cultural fit.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Commercial Fit/i }));
     expect(screen.getByText('Why they can buy')).toBeInTheDocument();
-    expect(screen.getByText('Why they belong')).toBeInTheDocument();
     expect(screen.getByText('Turnover +15 (revenue band indicates buying power for sponsorship).')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Cultural Fit/i }));
+    expect(screen.getByText('Why they belong')).toBeInTheDocument();
     expect(screen.getByText('North West identity and family business positioning support cultural fit.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Captured Contacts' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
@@ -270,7 +278,9 @@ describe('FinalBriefRenderer partnership fit panel', () => {
     expect(screen.getByRole('heading', { name: 'Partnership Fit' })).toBeInTheDocument();
     expect(screen.getByText('40/60')).toBeInTheDocument();
     expect(screen.getByText('30/40')).toBeInTheDocument();
-    expect(screen.getByText('Total Fit Score: 40 + 30 = 70/100')).toBeInTheDocument();
+    expect(screen.queryByText(/Total Fit Score/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Commercial Fit/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Cultural Fit/i }));
     expect(screen.getAllByText('No supporting evidence captured')).toHaveLength(2);
   });
 
@@ -349,6 +359,65 @@ describe('FinalBriefRenderer research appendix property gating', () => {
     expect(screen.getByText('Company Info')).toBeInTheDocument();
     expect(screen.getByText('News & Developments')).toBeInTheDocument();
     expect(screen.getByText('Events')).toBeInTheDocument();
+  });
+});
+
+describe('FinalBriefRenderer company presence appendix', () => {
+  it('renders company-presence fields as a dedicated readable block', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        company: {
+          website: 'https://example.com',
+          headquarters_location: 'Manchester HQ',
+          operating_locations: ['Manchester office', 'Liverpool team hub'],
+          regional_presence_evidence: [
+            'Careers page references a North West team',
+            'Leadership profile references Manchester operations'
+          ],
+          locations: ['Manchester', 'North West', 'UK-wide customer events'],
+          registered_office_address: 'Legal House, London EC1A 1AA'
+        }
+      }
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Company Info' }));
+
+    expect(screen.getByText('Company Presence')).toBeInTheDocument();
+    expect(screen.getByText('HQ / principal location')).toBeInTheDocument();
+    expect(screen.getByText('Manchester HQ')).toBeInTheDocument();
+    expect(screen.getByText('Operating locations')).toBeInTheDocument();
+    expect(screen.getByText('Manchester office')).toBeInTheDocument();
+    expect(screen.getByText('Liverpool team hub')).toBeInTheDocument();
+    expect(screen.getByText('Regional presence evidence')).toBeInTheDocument();
+    expect(screen.getByText('Careers page references a North West team')).toBeInTheDocument();
+    expect(screen.getByText('Other locations / served regions')).toBeInTheDocument();
+    expect(screen.getByText('Registered office (legal address)')).toBeInTheDocument();
+    expect(screen.getByText('Legal House, London EC1A 1AA')).toBeInTheDocument();
+    expect(screen.getByText('Website:')).toBeInTheDocument();
+
+    expect(document.body.textContent).not.toContain('["Manchester office"');
+    expect(screen.queryByText('Headquarters Location:')).not.toBeInTheDocument();
+    expect(screen.queryByText('Operating Locations:')).not.toBeInTheDocument();
+    expect(screen.queryByText('Registered Office Address:')).not.toBeInTheDocument();
+  });
+
+  it('keeps legacy company info rendering when company-presence fields are absent', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        company: {
+          employee_count: '120',
+          industry: 'Manufacturing'
+        }
+      }
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Company Info' }));
+
+    expect(screen.queryByText('Company Presence')).not.toBeInTheDocument();
+    expect(screen.getByText('Employee Count:')).toBeInTheDocument();
+    expect(screen.getByText('120')).toBeInTheDocument();
+    expect(screen.getByText('Industry:')).toBeInTheDocument();
+    expect(screen.getByText('Manufacturing')).toBeInTheDocument();
   });
 });
 
@@ -530,7 +599,8 @@ describe('FinalBriefRenderer route evidence cards', () => {
             ]
           }
         }
-      })
+      }),
+      property_led: true
     });
 
     expect(screen.queryByRole('heading', { name: 'Lookup Evidence' })).not.toBeInTheDocument();
@@ -547,6 +617,36 @@ describe('FinalBriefRenderer route evidence cards', () => {
       routeHeading.compareDocumentPosition(contactsHeading) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(screen.getByText('Jane Buyer')).toBeInTheDocument();
+  });
+
+  it('does not render route evidence for company-led briefs with consultant-style contacts', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        who_to_contact: {
+          primary_buyer: {
+            name: 'Ben Preston',
+            role: 'Financial Adviser',
+            source: 'contact'
+          }
+        }
+      },
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Ben Preston',
+              role: 'Financial Adviser',
+              email: 'ben@example.com'
+            }
+          ]
+        }
+      }
+    }));
+
+    expect(screen.queryByRole('heading', { name: 'Route Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByText('No route identified')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Captured Contacts' })).toBeInTheDocument();
+    expect(screen.getByText('Ben Preston')).toBeInTheDocument();
   });
 
   it('does not render route evidence when route data is absent', () => {
@@ -599,7 +699,7 @@ describe('FinalBriefRenderer OS roof candidate evidence', () => {
     expect(screen.getByText('High confidence')).toBeInTheDocument();
     expect(screen.queryByText('Expected Data Output')).not.toBeInTheDocument();
     expect(screen.getByText('2025-07-12')).toBeInTheDocument();
-    expect(screen.getByText('Fresh evidence')).toBeInTheDocument();
+    expect(screen.getByText('Recent evidence')).toBeInTheDocument();
     expect(screen.getByText('osgb123')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /verify on google maps/i })).toHaveAttribute(
       'href',
@@ -618,6 +718,56 @@ describe('FinalBriefRenderer OS roof candidate evidence', () => {
 
     expect(screen.queryByRole('heading', { name: 'Property / Site Evidence' })).not.toBeInTheDocument();
     expect(screen.queryByText('OS Roof Candidate')).not.toBeInTheDocument();
+  });
+
+  it('renders planning application evidence with planning record and documents links', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        property_signals: {
+          planning_application_context: {
+            application_reference: '26/12671/LB',
+            status: 'Pending consideration',
+            authority: 'Bristol, City of LPA',
+            proposal: 'Elevation and roof repairs including stone cleaning.',
+            council_url: 'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?keyVal=TH6UXADNHHK00&activeTab=summary',
+            supporting_documents_url: 'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?activeTab=documents&keyVal=TH6UXADNHHK00'
+          }
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Property / Site Evidence' })).toBeInTheDocument();
+    expect(screen.getByText('Planning Application')).toBeInTheDocument();
+    expect(screen.getByText('26/12671/LB')).toBeInTheDocument();
+    expect(screen.getByText('Pending consideration')).toBeInTheDocument();
+    expect(screen.getByText('Bristol, City of LPA')).toBeInTheDocument();
+    expect(screen.getByText('Elevation and roof repairs including stone cleaning.')).toBeInTheDocument();
+    expect(screen.getByText('Council planning record')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open planning record/i })).toHaveAttribute(
+      'href',
+      'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?keyVal=TH6UXADNHHK00&activeTab=summary'
+    );
+    expect(screen.getByRole('link', { name: /view documents/i })).toHaveAttribute(
+      'href',
+      'https://pa.bristol.gov.uk/online-applications/applicationDetails.do?activeTab=documents&keyVal=TH6UXADNHHK00'
+    );
+    expect(screen.queryByRole('link', { name: /verify on google maps/i })).not.toBeInTheDocument();
+  });
+
+  it('does not render planning application evidence when planning context is missing', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        property_signals: {
+          planning_application_context: {
+            application_reference: '26/12671/LB'
+          }
+        }
+      }
+    }));
+
+    expect(screen.queryByText('Planning Application')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /open planning record/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Property / Site Evidence' })).not.toBeInTheDocument();
   });
 
   it('renders missing optional fields without empty placeholders', () => {

@@ -16,27 +16,59 @@ const getFirstUrl = (value) => {
   return text;
 };
 
+const isGoogleMapsUrl = (value) => {
+  const url = getFirstUrl(value);
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    const pathname = parsed.pathname.toLowerCase();
+
+    return (hostname === 'goo.gl' && pathname.startsWith('/maps'))
+      || (hostname === 'google.com' && pathname.startsWith('/maps'))
+      || (hostname.endsWith('.google.com') && pathname.startsWith('/maps'))
+      || hostname.startsWith('maps.google.');
+  } catch {
+    return false;
+  }
+};
+
+const getGoogleMapsUrlCandidate = (value) => {
+  const url = getFirstUrl(value);
+  return isGoogleMapsUrl(url) ? url : '';
+};
+
 const isPropertyLedBrief = (brief) => (
   brief?.property_led === true
   || brief?.metadata?.property_led === true
   || Boolean(brief?.property_id || brief?.metadata?.property_id)
 );
 
+const joinAddressParts = (...parts) => (
+  parts.map(cleanText).filter(Boolean).join(' ')
+);
+
 const getPropertyAddress = (brief) => (
-  cleanText(brief?.research?.os_ngd_roof_candidate?.nearest_address)
+  joinAddressParts(brief?.property_identity?.address, brief?.property_identity?.postcode)
+  || cleanText(brief?.research?.os_ngd_roof_candidate?.nearest_address)
   || cleanText(brief?.research_appendix?.property_signals?.property?.nearest_address)
-  || cleanText(brief?.research_appendix?.property_signals?.property?.address)
+  || joinAddressParts(
+    brief?.research_appendix?.property_signals?.property?.address,
+    brief?.research_appendix?.property_signals?.planning_application_context?.postcode
+  )
+  || joinAddressParts(
+    brief?.research_appendix?.property_signals?.planning_application_context?.site_address,
+    brief?.research_appendix?.property_signals?.planning_application_context?.postcode
+  )
   || cleanText(brief?.research_appendix?.properties?.primary_property_address)
   || cleanText(brief?.metadata?.property_address)
   || cleanText(brief?.property_address)
-  || cleanText(brief?.company_name)
 );
 
 const getGoogleMapsUrl = (brief, address) => (
-  getFirstUrl(brief?.research?.os_ngd_roof_candidate?.google_maps_url)
-  || getFirstUrl(brief?.research_appendix?.property_signals?.property?.google_maps_url)
-  || getFirstUrl(brief?.research_appendix?.property_signals?.property?.candidate_occupier?.sources)
-  || getFirstUrl(brief?.research?.property_signal_enrichment?.property?.candidate_occupier?.sources)
+  getGoogleMapsUrlCandidate(brief?.research?.os_ngd_roof_candidate?.google_maps_url)
+  || getGoogleMapsUrlCandidate(brief?.research_appendix?.property_signals?.property?.google_maps_url)
   || (address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : '')
 );
 
