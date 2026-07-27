@@ -15,6 +15,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '@/services/supabaseDataService.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
+import { getFeedbackRunIdChunks, mergeFeedbackRowsWithNotes } from '@/utils/feedbackNotes.js';
 
 const QUICK_REASON_MAP = {
   good_fit: 'Good fit',
@@ -89,7 +90,33 @@ const FeedbackPage = () => {
           throw feedbackError;
         }
 
-        setRawData(data || []);
+        const feedbackRows = data || [];
+        const runIdChunks = getFeedbackRunIdChunks(feedbackRows);
+        let noteRows = [];
+
+        if (runIdChunks.length > 0) {
+          try {
+            for (const runIdChunk of runIdChunks) {
+              const { data: notesData, error: notesError } = await supabase
+                .from('portal_brief_notes_enriched')
+                .select('id, client_id, company_id, run_id, note_text, created_at, created_by_display_name, created_by_email')
+                .eq('client_id', client_id)
+                .in('run_id', runIdChunk)
+                .order('created_at', { ascending: false });
+
+              if (notesError) throw notesError;
+              noteRows = [...noteRows, ...(notesData || [])];
+            }
+          } catch (notesError) {
+            console.warn('Failed to fetch feedback note history, falling back to legacy notes:', {
+              message: notesError.message,
+              code: notesError.code,
+              details: notesError.details
+            });
+          }
+        }
+
+        setRawData(mergeFeedbackRowsWithNotes(feedbackRows, noteRows));
       } catch (err) {
         console.error('Failed to fetch feedback data:', err);
         setError('Failed to load feedback data. Please try again later.');
@@ -109,7 +136,7 @@ const FeedbackPage = () => {
         const match = 
           (item.company_name?.toLowerCase().includes(q)) ||
           (item.company_id?.toLowerCase().includes(q)) ||
-          (item.notes?.toLowerCase().includes(q));
+          (item.notes_search_text?.toLowerCase().includes(q));
         if (!match) return false;
       }
 
@@ -444,9 +471,20 @@ const FeedbackPage = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell className="max-w-[300px]">
-                                    <p className="text-sm text-muted-foreground truncate" title={row.notes}>
-                                      {row.notes || '-'}
-                                    </p>
+                                    {row.latest_note ? (
+                                      <div className="flex items-center gap-2">
+                                        <p className="min-w-0 truncate text-sm text-muted-foreground" title={row.notes}>
+                                          {row.latest_note}
+                                        </p>
+                                        {row.notes_count > 1 && (
+                                          <Badge variant="outline" className="shrink-0 border-border/60 bg-muted/30 px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+                                            {row.notes_count} notes
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground">-</p>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-sm text-muted-foreground tabular-nums">
                                     {new Date(row.updated_at || row.created_at).toLocaleDateString()}

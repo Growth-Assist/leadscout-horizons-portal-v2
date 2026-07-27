@@ -20,13 +20,39 @@ const humanizeKey = (key) => {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
+const formatDisplayValue = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) {
+    return value.map(formatDisplayValue).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([key, nestedValue]) => {
+        const formattedValue = formatDisplayValue(nestedValue);
+        return formattedValue ? `${humanizeKey(key)}: ${formattedValue}` : '';
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  return String(value);
+};
+
+const asDisplayArray = (value) => asArray(value)
+  .map(formatDisplayValue)
+  .filter(Boolean);
+
 const formatCurrencyGBP = (value) => {
   if (value === null || value === undefined) return '';
+  if (typeof value !== 'number' && typeof value !== 'string') return formatDisplayValue(value);
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return formatDisplayValue(value);
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP',
     maximumFractionDigits: 0
-  }).format(value);
+  }).format(numericValue);
 };
 
 const ICPProfilePage = () => {
@@ -153,31 +179,33 @@ const ICPProfilePage = () => {
   const icp = icpData?.content ?? icpData ?? {};
 
   // Data extraction
-  const targetIndustries = asArray(icp.target_industries);
+  const targetIndustries = asDisplayArray(icp.target_industries);
   
   const dealbreakers = Object.entries(icp.dealbreakers || {})
     .filter(([_, val]) => val === true)
     .map(([key]) => humanizeKey(key));
   const excludedIndustries = [...new Set([
-    ...asArray(icp.operational_focus?.disqualify_description_keywords),
+    ...asDisplayArray(icp.operational_focus?.disqualify_description_keywords),
     ...dealbreakers
   ])];
 
-  const positiveSignals = asArray(icp.operational_focus?.description_keywords);
-  const negativeSignals = asArray(icp.operational_focus?.disqualify_description_keywords);
+  const positiveSignals = asDisplayArray(icp.operational_focus?.description_keywords);
+  const negativeSignals = asDisplayArray(icp.operational_focus?.disqualify_description_keywords);
 
-  const employeeBands = asArray(icp.size_requirements?.employee_bands);
+  const employeeBands = asDisplayArray(icp.size_requirements?.employee_bands);
   const minEmp = icp.size_requirements?.min_employees;
   const maxEmp = icp.size_requirements?.max_employees;
   const hasSizeCriteria = employeeBands.length > 0 || minEmp !== undefined || maxEmp !== undefined;
 
   const minTurnover = icp.turnover_rules?.min_turnover_gbp;
   const excludeMicro = icp.turnover_rules?.exclude_micro_accounts;
-  const penalizeBands = asArray(icp.turnover_rules?.penalize_turnover_bands);
+  const penalizeBands = asDisplayArray(icp.turnover_rules?.penalize_turnover_bands);
   const hasRevenueCriteria = minTurnover !== undefined || excludeMicro || penalizeBands.length > 0;
 
-  const scoringWeights = Object.entries(icp.scoring_weights || {});
-  const notes = icp.notes;
+  const scoringWeights = Object.entries(icp.scoring_weights || {})
+    .map(([key, value]) => [key, formatDisplayValue(value)])
+    .filter(([_, value]) => Boolean(value));
+  const notes = formatDisplayValue(icp.notes);
 
   return (
     <>
@@ -302,8 +330,8 @@ const ICPProfilePage = () => {
                             <div>
                               <h4 className="font-medium mb-2 text-sm text-muted-foreground">Employee Count Limits</h4>
                               <div className="space-y-1">
-                                {minEmp !== undefined && <p className="text-sm"><span className="font-medium">Minimum:</span> {minEmp}</p>}
-                                {maxEmp !== undefined && <p className="text-sm"><span className="font-medium">Maximum:</span> {maxEmp}</p>}
+                                {minEmp !== undefined && <p className="text-sm"><span className="font-medium">Minimum:</span> {formatDisplayValue(minEmp) || 'Not specified'}</p>}
+                                {maxEmp !== undefined && <p className="text-sm"><span className="font-medium">Maximum:</span> {formatDisplayValue(maxEmp) || 'Not specified'}</p>}
                               </div>
                             </div>
                           )}

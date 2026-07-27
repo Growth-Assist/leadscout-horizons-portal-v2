@@ -22,6 +22,7 @@ import supabaseDataService, { supabase } from '@/services/supabaseDataService.js
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { normalizeAssignmentStatus } from '@/utils/assignmentStatus.js';
+import { buildBriefsCsv, formatVerdictLabel } from '@/utils/briefCsvExport.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
 
 const PUBLIC_BASE_URL = 'https://poc.growth-assist.co.uk';
@@ -43,15 +44,6 @@ const getDecisionBadge = (decision) => {
   return <Badge className="bg-muted text-muted-foreground">{decision || 'N/A'}</Badge>;
 };
 
-const formatVerdictLabel = (verdict) => {
-  if (!verdict) return 'Not reviewed';
-  const lower = verdict.toLowerCase();
-  if (lower === 'good') return 'Good';
-  if (lower === 'mixed') return 'Mixed';
-  if (lower === 'bad') return 'Bad';
-  return verdict.charAt(0).toUpperCase() + verdict.slice(1);
-};
-
 const getVerdictBadge = (verdict) => {
   const lower = verdict?.toLowerCase() || '';
   if (lower === 'good') return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Good</Badge>;
@@ -70,63 +62,9 @@ const getAssignmentStatusBadge = (status) => {
   return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border/50">Unassigned</Badge>;
 };
 
-const escapeCSV = (str) => {
-  if (str === null || str === undefined) return '';
-  const s = String(str);
-  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-};
-
 const exportBriefsToCSV = (briefs) => {
   if (!briefs || briefs.length === 0) return;
-
-  const headers = [
-    'company_name',
-    'company_id',
-    'run_id',
-    'campaign_id',
-    'industry',
-    'decision',
-    'website',
-    'assignee',
-    'assignment_status',
-    'brief_verdict',
-    'quick_reason',
-    'contacted',
-    'notes',
-    'brief_created_at',
-    'feedback_created_at',
-    'feedback_updated_at'
-  ];
-
-  const csvRows = [
-    headers.join(','),
-    ...briefs.map(row => {
-      const assigneeName = row.assignment_display_name || row.assignment_email || 'Unassigned';
-      return [
-        escapeCSV(row.mappedName),
-        escapeCSV(row.company_id),
-        escapeCSV(row.finalBriefRunId),
-        escapeCSV(row.campaign_id),
-        escapeCSV(row.mappedIndustry),
-        escapeCSV(row.mappedDecision),
-        escapeCSV(row.mappedWebsite),
-        escapeCSV(assigneeName),
-        escapeCSV(normalizeAssignmentStatus(row.assignment_status) || ''),
-        escapeCSV(formatVerdictLabel(row.feedback_verdict)),
-        escapeCSV(row.feedback_quick_reason),
-        escapeCSV(row.feedback_contacted),
-        escapeCSV(row.feedback_notes),
-        escapeCSV(row.final_brief_generated_at),
-        escapeCSV(row.feedback_created_at),
-        escapeCSV(row.feedback_updated_at)
-      ].join(',');
-    })
-  ];
-
-  const csvString = csvRows.join('\n');
+  const csvString = buildBriefsCsv(briefs);
   const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
