@@ -362,6 +362,157 @@ describe('FinalBriefRenderer research appendix property gating', () => {
   });
 });
 
+describe('FinalBriefRenderer contact route research appendix', () => {
+  const contactRoute = {
+    selected_route: {
+      name: 'Mace',
+      role: 'Main contractor',
+      confidence: 'high',
+      validation_status: 'validated',
+      website: 'https://www.macegroup.com/',
+      sources: [],
+      notes: 'Mace is the validated delivery route for the project.'
+    },
+    selection_reason: 'Mace has the strongest verified relationship to the active project.',
+    owner_fallback_used: true,
+    evidence: {
+      sources: [
+        'https://www.macegroup.com/projects/example-project',
+        'https://find-and-update.company-information.service.gov.uk/company/01234567',
+        'javascript:alert("unsafe")'
+      ],
+      notes: 'The project page and company record corroborate the selected route.'
+    },
+    results: {
+      accepted_contact_count: 3,
+      rejected_contact_count: 2,
+      validation_identity_sources: [
+        'provider_organisation_domain',
+        'companies_house_record'
+      ]
+    },
+    attempts: [
+      {
+        route_name: 'Lindner Prater',
+        route_role: 'Envelope contractor',
+        confidence: 'medium',
+        validation_status: 'rejected',
+        resolved_website: 'https://www.lindner-prater.com/',
+        resolved_domain: 'lindner-prater.com',
+        contact_count: 0,
+        contact_number_count: 0,
+        source_count: 2,
+        rejected_contact_count: 2,
+        rejection_reasons: [
+          'Contacts belonged to the wrong regional entity.',
+          'No project-specific identity match.'
+        ],
+        outcome: 'route_rejected'
+      },
+      {
+        route_name: 'Mace',
+        route_role: 'Main contractor',
+        confidence: 'high',
+        validation_status: 'validated',
+        resolved_website: 'https://www.macegroup.com/',
+        resolved_domain: 'macegroup.com',
+        contact_count: 3,
+        contact_number_count: 2,
+        source_count: 4,
+        rejected_contact_count: 0,
+        rejection_reasons: [],
+        outcome: 'contacts_accepted'
+      }
+    ]
+  };
+
+  it('renders a simple collapsed route trigger and expands evidence, results, and chronological attempts', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contact_route: contactRoute
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Research Appendix' })).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: 'Contact Route' });
+    expect(screen.queryByText('Mace · Main contractor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Accepted 3')).not.toBeInTheDocument();
+    expect(screen.queryByText('Rejected 2')).not.toBeInTheDocument();
+    expect(screen.queryByText('Owner fallback')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mace is the validated delivery route for the project.')).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+
+    expect(screen.getByText('Owner fallback')).toBeInTheDocument();
+    expect(screen.getByText('Mace is the validated delivery route for the project.')).toBeInTheDocument();
+    expect(screen.getByText('Mace has the strongest verified relationship to the active project.')).toBeInTheDocument();
+    expect(screen.getByText('Provider organisation domain, Companies house record')).toBeInTheDocument();
+
+    const projectLink = screen.getByRole('link', { name: 'macegroup.com' });
+    expect(projectLink).toHaveAttribute('href', 'https://www.macegroup.com/projects/example-project');
+    expect(projectLink).toHaveAttribute('target', '_blank');
+    expect(projectLink).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('link', { name: 'find-and-update.company-information.service.gov.uk' })).toHaveAttribute(
+      'href',
+      'https://find-and-update.company-information.service.gov.uk/company/01234567'
+    );
+    expect(document.querySelector('a[href^="javascript:"]')).not.toBeInTheDocument();
+
+    const rejectedAttempt = screen.getByText('Lindner Prater · Envelope contractor');
+    const acceptedAttempt = screen.getAllByText('Mace · Main contractor').at(-1);
+    expect(
+      rejectedAttempt.compareDocumentPosition(acceptedAttempt) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByText('Route rejected')).toBeInTheDocument();
+    expect(screen.getByText('Contacts accepted')).toBeInTheDocument();
+    expect(screen.getByText('Contacts belonged to the wrong regional entity.')).toBeInTheDocument();
+    expect(screen.getByText('No project-specific identity match.')).toBeInTheDocument();
+  });
+
+  it('renders a route-only appendix when attempts or result counts are meaningful', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contact_route: {
+          selected_route: null,
+          results: {
+            accepted_contact_count: 1,
+            rejected_contact_count: 0,
+            validation_identity_sources: []
+          },
+          attempts: []
+        }
+      }
+    }));
+
+    expect(screen.getByRole('heading', { name: 'Research Appendix' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Contact Route' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['empty', {}],
+    [
+      'structurally empty',
+      {
+        selected_route: null,
+        results: {
+          accepted_contact_count: 0,
+          rejected_contact_count: 0,
+          validation_identity_sources: []
+        },
+        attempts: []
+      }
+    ]
+  ])('does not render the route appendix when contact_route is %s', (_label, routeData) => {
+    renderBrief(baseBriefJson({
+      research_appendix: routeData === undefined ? {} : { contact_route: routeData }
+    }));
+
+    expect(screen.queryByRole('button', { name: 'Contact Route' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Research Appendix' })).not.toBeInTheDocument();
+  });
+});
+
 describe('FinalBriefRenderer company presence appendix', () => {
   it('renders company-presence fields as a dedicated readable block', () => {
     renderBrief(baseBriefJson({
@@ -1071,6 +1222,175 @@ describe('FinalBriefRenderer contact routing badges', () => {
     expect(screen.queryByText(/verified Apollo contact matched/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/seniority fallback/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Rhopoint Metrology Limited/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the company name and preferred company number once above the contact cards', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          company_contact_numbers: ['+44 1604 678960'],
+          items: [
+            {
+              name: 'Alex Morgan',
+              role: 'Operations Director',
+              phone: '07700 900123'
+            }
+          ]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('Alex Morgan'));
+    expect(card.getByText('07700 900123')).toBeInTheDocument();
+    expect(card.queryByText('+44 1604 678960')).not.toBeInTheDocument();
+
+    const companyPhoneRow = screen.getByTitle('Company-level number — not a direct personal phone');
+    expect(within(companyPhoneRow).getByText('Acme Manufacturing')).toBeInTheDocument();
+    expect(within(companyPhoneRow).getByText('Company line')).toBeInTheDocument();
+    expect(within(companyPhoneRow).getByText('+44 1604 678960')).toBeInTheDocument();
+    expect(
+      within(companyPhoneRow).getByText('Company-level number — not a direct personal phone')
+    ).toHaveClass('sr-only');
+  });
+
+  it('keeps the no-direct-phone state while showing the shared company line above the card', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          company_contact_numbers: ['+44 1604 678960'],
+          items: [
+            {
+              name: 'No Mobile',
+              role: 'Commercial Director',
+              email: 'no.mobile@example.com'
+            }
+          ]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('No Mobile'));
+    expect(card.getByText('—')).toBeInTheDocument();
+    expect(card.queryByText('+44 1604 678960')).not.toBeInTheDocument();
+    expect(
+      screen.getByTitle('Company-level number — not a direct personal phone')
+    ).toHaveTextContent('+44 1604 678960');
+  });
+
+  it('does not render a company contact strip when company numbers are unavailable', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          items: [
+            {
+              name: 'Direct Only',
+              role: 'Sales Director',
+              phone: '07700 900456'
+            }
+          ]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('Direct Only'));
+    expect(card.getByText('07700 900456')).toBeInTheDocument();
+    expect(
+      screen.queryByTitle('Company-level number — not a direct personal phone')
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows only the preferred company number once rather than repeating it on every card', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          company_contact_numbers: [
+            '  +44 1604 678960  ',
+            '',
+            '+44 1604 678961',
+            12345,
+            '+44 1604 678962'
+          ],
+          items: [
+            {
+              name: 'First Contact',
+              role: 'Managing Director',
+              phone: '07700 900111'
+            },
+            {
+              name: 'Second Contact',
+              role: 'Operations Director',
+              phone: '07700 900222'
+            }
+          ]
+        }
+      }
+    }));
+
+    const companyPhoneRows = screen.getAllByTitle('Company-level number — not a direct personal phone');
+    expect(companyPhoneRows).toHaveLength(1);
+    expect(companyPhoneRows[0]).toHaveTextContent('+44 1604 678960');
+    expect(companyPhoneRows[0]).not.toHaveTextContent('+44 1604 678961');
+    expect(companyPhoneRows[0]).not.toHaveTextContent('+44 1604 678962');
+    expect(companyPhoneRows[0]).not.toHaveTextContent('12345');
+
+    ['First Contact', 'Second Contact'].forEach((name) => {
+      const card = within(contactCardFor(name));
+      expect(card.queryByText('+44 1604 678960')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows the company contact strip when no named contacts were captured', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          company_contact_numbers: ['+44 1604 678960'],
+          items: []
+        }
+      }
+    }));
+
+    const companyPhoneRow = screen.getByTitle('Company-level number — not a direct personal phone');
+    expect(companyPhoneRow).toHaveTextContent('Acme Manufacturing');
+    expect(companyPhoneRow).toHaveTextContent('Company line');
+    expect(companyPhoneRow).toHaveTextContent('+44 1604 678960');
+    expect(
+      screen.getByText('No named contacts were captured yet. Use the ICP-aligned target titles as the recommended starting point.')
+    ).toBeInTheDocument();
+  });
+
+  it('uses the selected contractor route name for a property-led company line', () => {
+    renderBrief({
+      ...baseBriefJson({
+        research_appendix: {
+          contact_route: {
+            selected_route: {
+              name: 'Faircloth Construction Limited',
+              role: 'main_contractor'
+            },
+            attempts: []
+          },
+          contacts: {
+            company_contact_numbers: ['+44 1892 784488'],
+            items: [
+              {
+                name: 'Ben Whitewood',
+                role: 'Director of Construction',
+                phone: '+44 77 5420 7529'
+              }
+            ]
+          }
+        }
+      }),
+      property_led: true,
+      property_identity: {
+        address: 'Plot 4, Argall Avenue, Leyton, E10 7QE'
+      }
+    });
+
+    const companyPhoneRow = screen.getByTitle('Company-level number — not a direct personal phone');
+    expect(within(companyPhoneRow).getByText('Faircloth Construction Limited')).toBeInTheDocument();
+    expect(within(companyPhoneRow).queryByText(/Plot 4, Argall Avenue/)).not.toBeInTheDocument();
+    expect(within(companyPhoneRow).getByText('+44 1892 784488')).toBeInTheDocument();
   });
 });
 

@@ -733,6 +733,266 @@ const MiniTile = ({ label, value, isBadge }) => (
   </div>
 );
 
+const formatSnakeCaseLabel = (value) => {
+  const text = String(value || '')
+    .trim()
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ');
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : '';
+};
+
+const isSafeExternalUrl = (value) => (
+  typeof value === 'string' && /^https?:\/\/\S+$/i.test(value.trim())
+);
+
+const normalizeContactCount = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const count = Number(value);
+  return Number.isFinite(count) ? count : 0;
+};
+
+const getContactRouteViewModel = (contactRoute) => {
+  const route = contactRoute && typeof contactRoute === 'object' && !Array.isArray(contactRoute)
+    ? contactRoute
+    : null;
+  const selectedRoute = route?.selected_route
+    && typeof route.selected_route === 'object'
+    && !Array.isArray(route.selected_route)
+    ? route.selected_route
+    : null;
+  const attempts = Array.isArray(route?.attempts)
+    ? route.attempts.filter((attempt) => attempt && typeof attempt === 'object' && !Array.isArray(attempt))
+    : [];
+  const acceptedCount = normalizeContactCount(route?.results?.accepted_contact_count);
+  const rejectedCount = normalizeContactCount(route?.results?.rejected_contact_count);
+  const identitySources = Array.isArray(route?.results?.validation_identity_sources)
+    ? route.results.validation_identity_sources.map(formatSnakeCaseLabel).filter(Boolean)
+    : [];
+  const evidenceSources = Array.isArray(route?.evidence?.sources)
+    ? route.evidence.sources
+      .filter(isSafeExternalUrl)
+      .map((source) => source.trim())
+    : [];
+
+  return {
+    route,
+    selectedRoute,
+    attempts,
+    acceptedCount,
+    rejectedCount,
+    identitySources,
+    evidenceSources,
+    hasMeaningfulData: Boolean(selectedRoute)
+      || attempts.length > 0
+      || acceptedCount > 0
+      || rejectedCount > 0
+  };
+};
+
+const ContactRouteAccordionItem = ({ contactRoute }) => {
+  const {
+    route,
+    selectedRoute,
+    attempts,
+    acceptedCount,
+    rejectedCount,
+    identitySources,
+    evidenceSources,
+    hasMeaningfulData
+  } = getContactRouteViewModel(contactRoute);
+
+  if (!hasMeaningfulData) return null;
+
+  const selectedName = getBriefFieldText(selectedRoute?.name);
+  const selectedRole = getBriefFieldText(selectedRoute?.role);
+  const selectedConfidence = getBriefFieldText(selectedRoute?.confidence);
+  const selectedValidationStatus = getBriefFieldText(selectedRoute?.validation_status);
+  const selectedWebsite = isSafeExternalUrl(selectedRoute?.website)
+    ? selectedRoute.website.trim()
+    : '';
+  const selectionReason = getBriefFieldText(route?.selection_reason);
+  const routeNotes = getBriefFieldText(selectedRoute?.notes);
+  const evidenceNotes = getBriefFieldText(route?.evidence?.notes);
+  const hasSelectedRouteContent = selectedName
+    || selectedRole
+    || selectedConfidence
+    || selectedValidationStatus
+    || selectedWebsite
+    || selectionReason
+    || routeNotes;
+
+  return (
+    <AccordionItem value="contact-route">
+      <AccordionTrigger className="hover:no-underline hover:text-primary">
+        Contact Route
+      </AccordionTrigger>
+      <AccordionContent>
+        <div className="space-y-4 pb-4 pt-2">
+          {hasSelectedRouteContent && (
+            <Card className="border-border/60 bg-muted/10 shadow-none">
+              <CardContent className="space-y-4 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Selected route
+                    </p>
+                    {(selectedName || selectedRole) && (
+                      <p className="mt-1 font-semibold text-foreground">
+                        {[selectedName, selectedRole].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedConfidence && <Badge variant="secondary">{selectedConfidence}</Badge>}
+                    {selectedValidationStatus && (
+                      <Badge variant="outline">{formatSnakeCaseLabel(selectedValidationStatus)}</Badge>
+                    )}
+                    {route?.owner_fallback_used === true && (
+                      <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400">
+                        Owner fallback
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {selectionReason && (
+                  <div className="rounded-lg border border-border/50 bg-background/70 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Selection reason
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground">{selectionReason}</p>
+                  </div>
+                )}
+
+                {routeNotes && (
+                  <div className="rounded-lg border border-border/50 bg-background/70 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Route notes
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground">{routeNotes}</p>
+                  </div>
+                )}
+
+                {selectedWebsite && (
+                  <a
+                    href={selectedWebsite}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open selected route website
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {(evidenceSources.length > 0 || evidenceNotes) && (
+            <Card className="border-border/60 bg-muted/10 shadow-none">
+              <CardContent className="space-y-3 p-4">
+                <p className="text-sm font-semibold text-foreground">Route evidence</p>
+                {evidenceSources.length > 0 && (
+                  <div className="flex flex-col items-start gap-2">
+                    {evidenceSources.map((source, index) => (
+                      <a
+                        key={`${source}-${index}`}
+                        href={source}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex max-w-full items-center gap-1.5 text-sm text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{extractDomain(source)}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {evidenceNotes && (
+                  <p className="text-sm leading-relaxed text-muted-foreground">{evidenceNotes}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <MiniTile label="Accepted contacts" value={acceptedCount} />
+            <MiniTile label="Rejected contacts" value={rejectedCount} />
+            {identitySources.length > 0 && (
+              <MiniTile label="Validation identity sources" value={identitySources.join(', ')} />
+            )}
+          </div>
+
+          {attempts.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Route attempts</p>
+              {attempts.map((attempt, index) => {
+                const routeName = getBriefFieldText(attempt.route_name);
+                const routeRole = getBriefFieldText(attempt.route_role);
+                const outcome = getBriefFieldText(attempt.outcome);
+                const resolvedDomain = getBriefFieldText(attempt.resolved_domain);
+                const confidence = getBriefFieldText(attempt.confidence);
+                const validationStatus = getBriefFieldText(attempt.validation_status);
+                const contactCount = normalizeContactCount(attempt.contact_count);
+                const attemptRejectedCount = normalizeContactCount(attempt.rejected_contact_count);
+                const rejectionReasons = Array.isArray(attempt.rejection_reasons)
+                  ? attempt.rejection_reasons.map(getBriefFieldText).filter(Boolean)
+                  : [];
+
+                return (
+                  <div
+                    key={`${routeName || 'route'}-${index}`}
+                    className="rounded-xl border border-border/60 bg-muted/10 p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Attempt {index + 1}
+                        </p>
+                        {(routeName || routeRole) && (
+                          <p className="mt-1 font-semibold text-foreground">
+                            {[routeName, routeRole].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {outcome && <Badge variant="outline">{formatSnakeCaseLabel(outcome)}</Badge>}
+                        {confidence && <Badge variant="secondary">{confidence}</Badge>}
+                        {validationStatus && (
+                          <Badge variant="outline">{formatSnakeCaseLabel(validationStatus)}</Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      {resolvedDomain && <MiniTile label="Resolved domain" value={resolvedDomain} />}
+                      <MiniTile label="Contacts found" value={contactCount} />
+                      <MiniTile label="Rejected contacts" value={attemptRejectedCount} />
+                    </div>
+
+                    {rejectionReasons.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-border/50 bg-background/70 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Rejection reasons
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-foreground">
+                          {rejectionReasons.map((reason, reasonIndex) => (
+                            <li key={`${reason}-${reasonIndex}`}>{reason}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </AccordionContent>
+    </AccordionItem>
+  );
+};
+
 const getSignalBandClassName = (key) => {
   if (key === 'strong') return 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400';
   if (key === 'good') return 'bg-lime-500/20 text-lime-700 border-lime-500/30 dark:text-lime-400';
@@ -1206,7 +1466,42 @@ const ProjectStageSection = ({ stage }) => {
   );
 };
 
-const ContactCard = ({ contact, routeLabels = [], companyName, salesBrief, outreach }) => {
+const normalizeCompanyContactNumbers = (value) => (
+  Array.isArray(value)
+    ? value
+      .filter((number) => typeof number === 'string')
+      .map((number) => number.trim())
+      .filter(Boolean)
+    : []
+);
+
+const CompanyContactStrip = ({ companyName, phone }) => {
+  if (!phone) return null;
+
+  return (
+    <div
+      className="mb-4 flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm sm:flex-row sm:items-center sm:gap-4"
+      title="Company-level number — not a direct personal phone"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 font-semibold text-foreground">{companyName}</span>
+      </div>
+      <span className="hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
+      <span className="text-muted-foreground">Company line</span>
+      <span className="whitespace-nowrap text-foreground">{phone}</span>
+      <span className="sr-only">Company-level number — not a direct personal phone</span>
+    </div>
+  );
+};
+
+const ContactCard = ({
+  contact,
+  routeLabels = [],
+  companyName,
+  salesBrief,
+  outreach
+}) => {
   const emailDraft = buildBriefEmailDraft({ companyName, contact, salesBrief, outreach });
   const linkedInDraft = buildBriefLinkedInDraft({ companyName, contact, salesBrief, outreach });
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -1661,6 +1956,7 @@ const FinalBriefRenderer = ({ briefData }) => {
   const salesBrief = data.sales_brief || {};
   const outreach = data.outreach || {};
   const researchAppendix = data.research_appendix || {};
+  const contactRoute = researchAppendix.contact_route || null;
   const propertyRouteCards = getPropertyRouteCards(data);
   const osRoofCandidateEvidence = getOsRoofCandidateEvidence(data);
   const planningApplicationEvidence = getPlanningApplicationEvidence(data);
@@ -1671,6 +1967,9 @@ const FinalBriefRenderer = ({ briefData }) => {
   const contacts = Array.isArray(researchAppendix.contacts?.items) 
     ? researchAppendix.contacts.items 
     : (Array.isArray(researchAppendix.contacts) ? researchAppendix.contacts : []);
+  const companyContactNumbers = normalizeCompanyContactNumbers(
+    researchAppendix.contacts?.company_contact_numbers
+  );
   
   const routeLabelsByContactIndex = buildContactRouteLabels(contacts, salesBrief.who_to_contact || {});
 
@@ -1683,6 +1982,10 @@ const FinalBriefRenderer = ({ briefData }) => {
   });
   const companyName = briefDisplayInfo.displayName || 'Company Brief';
   const isPropertyLedBrief = briefDisplayInfo.isPropertyLed === true;
+  const selectedContactRouteName = getBriefFieldText(contactRoute?.selected_route?.name);
+  const companyContactName = isPropertyLedBrief && selectedContactRouteName
+    ? selectedContactRouteName
+    : companyName;
   const hasCompanyAppendix = researchAppendix.company && Object.keys(researchAppendix.company).length > 0;
   const genericCompanyEntries = hasCompanyAppendix
     ? Object.entries(researchAppendix.company).filter(([key, value]) => (
@@ -1699,10 +2002,12 @@ const FinalBriefRenderer = ({ briefData }) => {
   const hasEventsAppendix = researchAppendix.events?.items
     && Array.isArray(researchAppendix.events.items)
     && researchAppendix.events.items.length > 0;
+  const hasContactRouteAppendix = getContactRouteViewModel(contactRoute).hasMeaningfulData;
   const hasVisibleResearchAppendix = hasCompanyAppendix
     || hasPropertyAppendix
     || hasNewsAppendix
-    || hasEventsAppendix;
+    || hasEventsAppendix
+    || hasContactRouteAppendix;
 
   return (
     <div className="space-y-8">
@@ -1739,6 +2044,10 @@ const FinalBriefRenderer = ({ briefData }) => {
 
       {/* CONTACT CARDS */}
       <Section title="Captured Contacts">
+        <CompanyContactStrip
+          companyName={companyContactName}
+          phone={companyContactNumbers[0] || ''}
+        />
         {contacts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {contacts.map((contact, i) => (
@@ -1816,6 +2125,10 @@ const FinalBriefRenderer = ({ briefData }) => {
                   </div>
                 </AccordionContent>
               </AccordionItem>
+            )}
+
+            {hasContactRouteAppendix && (
+              <ContactRouteAccordionItem contactRoute={contactRoute} />
             )}
 
             {hasPropertyAppendix && (
