@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import Header from '@/components/Header.jsx';
 import Sidebar from '@/components/Sidebar.jsx';
-import { FileText, ArrowRight, AlertCircle, Clock, ThumbsUp, ThumbsDown, CheckCircle, ListTodo, Target, Eye, Ban, MinusCircle, MessageSquare, BarChart3 } from 'lucide-react';
+import { FileText, ArrowRight, AlertCircle, Clock, ThumbsUp, ThumbsDown, CheckCircle, ListTodo, Eye, MessageSquare, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import supabaseDataService, { supabase } from '@/services/supabaseDataService.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
@@ -182,21 +182,7 @@ const OverviewDashboard = () => {
   const totalReviewable = reviewedCount + toReviewCount;
   const reviewProgress = totalReviewable > 0 ? Math.round((reviewedCount / totalReviewable) * 100) : 0;
 
-  // Account Classification
   const targetCount = summaryData?.target_companies || 0;
-  const watchCount = summaryData?.watch_companies || 0;
-  const disqualifiedCount = summaryData?.disqualified_companies || 0;
-  const targetPct = scoredCount > 0 ? Math.round((targetCount / scoredCount) * 100) : 0;
-  const watchPct = scoredCount > 0 ? Math.round((watchCount / scoredCount) * 100) : 0;
-  const disqualifiedPct = scoredCount > 0 ? Math.round((disqualifiedCount / scoredCount) * 100) : 0;
-
-  // Feedback Quality
-  const goodCount = summaryData?.good_briefs || 0;
-  const mixedCount = summaryData?.mixed_briefs || 0;
-  const badCount = summaryData?.bad_briefs || 0;
-  const goodPct = reviewedCount > 0 ? Math.round((goodCount / reviewedCount) * 100) : 0;
-  const mixedPct = reviewedCount > 0 ? Math.round((mixedCount / reviewedCount) * 100) : 0;
-  const badPct = reviewedCount > 0 ? Math.round((badCount / reviewedCount) * 100) : 0;
 
   return (
     <>
@@ -346,101 +332,6 @@ const OverviewDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Section 1: Account Classification */}
-                    <div className="mb-12">
-                      <h3 className="text-lg font-semibold mb-4 text-foreground">Account Classification</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card className="shadow-sm border-l-4 border-l-emerald-500">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Target</CardTitle>
-                            <Target className="h-4 w-4 text-emerald-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-baseline justify-between">
-                              <div className="text-3xl font-bold tabular-nums">{targetCount}</div>
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">{targetPct}%</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">of scored companies</p>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-l-4 border-l-amber-500">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Watch</CardTitle>
-                            <Eye className="h-4 w-4 text-amber-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-baseline justify-between">
-                              <div className="text-3xl font-bold tabular-nums">{watchCount}</div>
-                              <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">{watchPct}%</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">of scored companies</p>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-l-4 border-l-rose-500">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Disqualified</CardTitle>
-                            <Ban className="h-4 w-4 text-rose-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-baseline justify-between">
-                              <div className="text-3xl font-bold tabular-nums">{disqualifiedCount}</div>
-                              <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20">{disqualifiedPct}%</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">of scored companies</p>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </div>
-
-                    {/* Section 2: Feedback Quality */}
-                    <div className="mb-12">
-                      <h3 className="text-lg font-semibold mb-4 text-foreground">Feedback Quality</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card className="shadow-sm border-l-4 border-l-emerald-500">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Good</CardTitle>
-                            <ThumbsUp className="h-4 w-4 text-emerald-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-baseline justify-between">
-                              <div className="text-3xl font-bold tabular-nums">{goodCount}</div>
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">{goodPct}%</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">of reviewed briefs</p>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-l-4 border-l-amber-500">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Mixed</CardTitle>
-                            <MinusCircle className="h-4 w-4 text-amber-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-baseline justify-between">
-                              <div className="text-3xl font-bold tabular-nums">{mixedCount}</div>
-                              <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">{mixedPct}%</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">of reviewed briefs</p>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-l-4 border-l-rose-500">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Bad</CardTitle>
-                            <ThumbsDown className="h-4 w-4 text-rose-500" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-baseline justify-between">
-                              <div className="text-3xl font-bold tabular-nums">{badCount}</div>
-                              <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20">{badPct}%</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">of reviewed briefs</p>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </div>
                   </>
                 )}
 

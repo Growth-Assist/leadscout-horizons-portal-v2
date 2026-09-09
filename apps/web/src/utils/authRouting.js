@@ -5,13 +5,13 @@
  * (3) '[AUTH] app_metadata: {...}'
  * (4) '[AUTH] client_id already exists: growth-assist' OR '[AUTH] client_id missing - calling bootstrap-user'
  * (5) '[AUTH] mfa_required: false' (or true)
- * (6) '[BOOTSTRAP] Calling POST /api/portal/bootstrap-user with client_id: growth-assist' (if missing)
- * (7) '[BOOTSTRAP] Request body: {...}' (if missing)
- * (8) '[BOOTSTRAP] Response: {...}' (if missing)
- * (9) '[AUTH] Redirecting to /overview'
+ * (6) '[BOOTSTRAP] Calling authenticated POST /api/portal/bootstrap-user' (if missing)
+ * (7) '[BOOTSTRAP] Response: {...}' (if missing)
+ * (8) '[AUTH] Redirecting to /overview'
  */
 
 import { supabase } from '@/lib/supabaseClient.js';
+import apiServerClient from '@/lib/apiServerClient.js';
 import { isStaleSessionError, clearAuthState } from '@/contexts/AuthContext.jsx';
 
 export const handlePostAuthRouting = async (navigate) => {
@@ -96,26 +96,16 @@ export const handlePostAuthRouting = async (navigate) => {
 
     console.log('[AUTH] client_id missing - calling bootstrap-user');
     
-    const fallbackClientId = 'growth-assist';
-    console.log('[BOOTSTRAP] Calling POST /api/portal/bootstrap-user with client_id: ' + fallbackClientId);
-    
-    const body = {
-      userId: user.id,
-      email: user.email,
-      client_id: fallbackClientId
-    };
-    
-    console.log('[BOOTSTRAP] Request body: ' + JSON.stringify(body));
+    console.log('[BOOTSTRAP] Calling authenticated POST /api/portal/bootstrap-user');
 
     try {
-      const apiUrl = import.meta.env.VITE_LEADSCOUT_API_URL || 'https://poc.growth-assist.co.uk';
-      const response = await fetch(`${apiUrl}/api/portal/bootstrap-user`, {
+      const response = await apiServerClient.fetch('/api/portal/bootstrap-user', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(body)
+        body: '{}'
       });
       
       const data = await response.json();

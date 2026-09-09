@@ -25,6 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils.js';
+import { useAuth } from '@/contexts/AuthContext.jsx';
 import {
   clearActiveQualifierJob,
   getCompanyQualifierStatus,
@@ -236,6 +237,8 @@ const getQuickQualifySummary = (result) => {
 };
 
 const CompanyQualifierPage = () => {
+  const { client_id: clientId, session } = useAuth();
+  const accessToken = session?.access_token;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [website, setWebsite] = useState('');
   const [submittedWebsite, setSubmittedWebsite] = useState('');
@@ -248,14 +251,15 @@ const CompanyQualifierPage = () => {
   const [submissionStartedAt, setSubmissionStartedAt] = useState(null);
 
   useEffect(() => {
-    const storedJob = loadActiveQualifierJob();
+    if (!clientId) return;
+    const storedJob = loadActiveQualifierJob({ clientId });
     if (!storedJob) return;
     setActiveJob(storedJob);
     setWebsite(storedJob.website);
     setSubmittedWebsite(storedJob.website);
     setSubmissionStartedAt(Date.parse(storedJob.submitted_at));
     setPhase('queued');
-  }, []);
+  }, [clientId]);
 
   useEffect(() => {
     if (!activeJob) return undefined;
@@ -265,6 +269,7 @@ const CompanyQualifierPage = () => {
 
     pollCompanyQualifier(activeJob, {
       signal: controller.signal,
+      accessToken,
       onStatus: (statusPayload) => {
         if (!mounted) return;
         const nextStage = statusPayload.stage || statusPayload.status;
@@ -279,7 +284,7 @@ const CompanyQualifierPage = () => {
     }).then((outcome) => {
       if (!mounted) return;
       if (outcome.kind === 'completed') {
-        clearActiveQualifierJob();
+        clearActiveQualifierJob({ clientId });
         setActiveJob(null);
         setResult(outcome.result);
         setPhase('completed');
@@ -288,7 +293,7 @@ const CompanyQualifierPage = () => {
       }
     }).catch((requestError) => {
       if (!mounted || requestError?.name === 'AbortError') return;
-      clearActiveQualifierJob();
+      clearActiveQualifierJob({ clientId });
       setActiveJob(null);
       setPhase('failed');
       setError(requestError.message || 'Unable to complete this qualification.');
@@ -298,7 +303,7 @@ const CompanyQualifierPage = () => {
       mounted = false;
       controller.abort();
     };
-  }, [activeJob]);
+  }, [accessToken, activeJob, clientId]);
 
   const hasActiveQualification = phase === 'submitting' || Boolean(activeJob);
 
@@ -347,14 +352,14 @@ const CompanyQualifierPage = () => {
     setPhase('submitting');
 
     try {
-      const outcome = await submitCompanyQualifier(normalizedWebsite);
+      const outcome = await submitCompanyQualifier(normalizedWebsite, { accessToken });
       if (outcome.kind === 'completed') {
         setResult(outcome.result);
         setPhase('completed');
         return;
       }
 
-      saveActiveQualifierJob(outcome.job);
+      saveActiveQualifierJob(outcome.job, { clientId });
       setLastKnownStage('queued');
       setActiveJob(outcome.job);
       setPhase('queued');
@@ -369,17 +374,17 @@ const CompanyQualifierPage = () => {
     setError('');
 
     try {
-      const statusPayload = await getCompanyQualifierStatus(activeJob);
+      const statusPayload = await getCompanyQualifierStatus(activeJob, { accessToken });
       if (statusPayload.status === 'completed') {
         if (!statusPayload.result || typeof statusPayload.result !== 'object') {
           throw new Error('Completed qualification did not include a result.');
         }
-        clearActiveQualifierJob();
+        clearActiveQualifierJob({ clientId });
         setActiveJob(null);
         setResult(statusPayload.result);
         setPhase('completed');
       } else if (statusPayload.status === 'failed') {
-        clearActiveQualifierJob();
+        clearActiveQualifierJob({ clientId });
         setActiveJob(null);
         setPhase('failed');
         setError(statusPayload.error || 'The qualification job failed.');
@@ -389,7 +394,7 @@ const CompanyQualifierPage = () => {
       }
     } catch (requestError) {
       if (!requestError?.transient) {
-        clearActiveQualifierJob();
+        clearActiveQualifierJob({ clientId });
         setActiveJob(null);
         setPhase('failed');
       }

@@ -1,9 +1,77 @@
 import { supabase } from '@/lib/supabaseClient.js';
+import { fetchAllSupabasePages } from '@/utils/supabasePagination.js';
+import { resolveAverageDealSizeGbp } from '@/utils/managementAnalytics.js';
 
 // Re-export supabase for backward compatibility with any other direct importers
 export { supabase };
 
 class SupabaseDataService {
+  async fetchAllTargetCompanyDetails(clientId) {
+    return fetchAllSupabasePages((from, to) => supabase
+      .from('portal_target_company_detail')
+      .select('client_id, company_id, latest_run_id, final_brief_run_id, name, website, industry, fit_score, decision, latest_logged_at, campaign_id, signal_id, signal_type, has_finalized_brief, final_brief_generated_at')
+      .eq('client_id', clientId)
+      .eq('has_finalized_brief', true)
+      .not('final_brief_run_id', 'is', null)
+      .order('fit_score', { ascending: false, nullsFirst: false })
+      .order('company_id', { ascending: true })
+      .range(from, to));
+  }
+
+  async fetchFinalBriefJsonForBriefs(clientId, briefs) {
+    if (!clientId || !Array.isArray(briefs) || briefs.length === 0) return [];
+
+    const requestedKeys = new Set();
+    const companyIds = [];
+    briefs.forEach((brief) => {
+      const companyId = String(brief?.company_id || '').trim();
+      const runId = String(brief?.final_brief_run_id || brief?.finalBriefRunId || '').trim();
+      if (!companyId || !runId) return;
+      requestedKeys.add(`${companyId}_${runId}`);
+      companyIds.push(companyId);
+    });
+    if (requestedKeys.size === 0) return [];
+
+    const uniqueCompanyIds = [...new Set(companyIds)];
+    const rows = [];
+    const chunkSize = 200;
+    for (let index = 0; index < uniqueCompanyIds.length; index += chunkSize) {
+      const { data, error } = await supabase
+        .from('portal_target_company_detail')
+        .select('company_id,final_brief_run_id,final_brief_json')
+        .eq('client_id', clientId)
+        .eq('has_finalized_brief', true)
+        .not('final_brief_run_id', 'is', null)
+        .in('company_id', uniqueCompanyIds.slice(index, index + chunkSize));
+
+      if (error) throw error;
+      rows.push(...(data || []));
+    }
+
+    return rows.filter((row) => requestedKeys.has(`${row.company_id}_${row.final_brief_run_id}`));
+  }
+
+  async fetchAllCompanySignals(clientId) {
+    return fetchAllSupabasePages((from, to) => supabase
+      .from('portal_company_signals')
+      .select('client_id, company_id, signal_id, run_id, type, summary, date')
+      .eq('client_id', clientId)
+      .order('company_id', { ascending: true })
+      .order('signal_id', { ascending: true })
+      .order('run_id', { ascending: true })
+      .range(from, to));
+  }
+
+  async fetchAllBriefFeedback(clientId) {
+    return fetchAllSupabasePages((from, to) => supabase
+      .from('portal_brief_feedback')
+      .select('client_id, company_id, run_id, brief_verdict, contacted, quick_reason, notes, created_at, updated_at, meeting_booked')
+      .eq('client_id', clientId)
+      .order('company_id', { ascending: true })
+      .order('run_id', { ascending: true })
+      .range(from, to));
+  }
+
   async fetchDashboardSummary(clientId) {
     if (!clientId) return { data: null, error: new Error('No client ID provided') };
     try {
@@ -368,6 +436,93 @@ class SupabaseDataService {
     }
   }
 
+  async fetchManagementCommercialData(clientId, verdict = null, campaign = null, signalType = null) {
+    if (!clientId) return { feedback: [], averageDealSize: null };
+
+    const feedbackQuery = supabase
+      .from('portal_brief_feedback')
+      .select('company_id, run_id, brief_verdict, contacted, meeting_booked, commercial_outcome, actual_deal_value_gbp, outcome_updated_at')
+      .eq('client_id', clientId);
+
+    if (verdict) feedbackQuery.eq('brief_verdict', verdict);
+
+    const targetQuery = supabase
+      .from('portal_target_company_detail')
+      .select('company_id, final_brief_run_id')
+      .eq('client_id', clientId);
+    if (campaign) targetQuery.eq('campaign_id', campaign);
+    if (signalType) targetQuery.eq('signal_type', signalType);
+
+    const contextPromise = this.fetchActiveClientContext(clientId).catch((error) => {
+      console.warn('Active client context is unavailable for management analytics:', error.message);
+      return null;
+    });
+
+    const [feedbackResult, contextDocument, targetResult] = await Promise.all([
+      feedbackQuery,
+      contextPromise,
+      campaign || signalType ? targetQuery : Promise.resolve({ data: null, error: null })
+    ]);
+
+    // A pre-migration database should still render the original analytics data.
+    if (feedbackResult.error && !['42703', '42P01'].includes(feedbackResult.error.code)) {
+      throw feedbackResult.error;
+    }
+    if (targetResult.error) throw targetResult.error;
+
+    let feedback = feedbackResult.data || [];
+    if (targetResult.data) {
+      const targetKeys = new Set(targetResult.data.map((row) => `${row.company_id}:${row.final_brief_run_id}`));
+      feedback = feedback.filter((row) => targetKeys.has(`${row.company_id}:${row.run_id}`));
+    }
+
+    return {
+      feedback,
+      averageDealSize: resolveAverageDealSizeGbp(contextDocument)
+    };
+  }
+
+  async fetchFeedbackNoteMomentum(clientId, dateFrom, dateTo, salespersonId = null) {
+    if (!clientId || !dateFrom || !dateTo) throw new Error('Client and momentum date range are required.');
+    const { data, error } = await supabase.rpc('portal_feedback_note_momentum', {
+      p_client_id: clientId,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+      p_salesperson_id: salespersonId
+    });
+
+    if (error) {
+      console.error('Supabase query error in fetchFeedbackNoteMomentum:', {
+        message: error.message,
+        code: error.code,
+        details: error.details
+      });
+      throw error;
+    }
+    return data;
+  }
+
+  async fetchFeedbackStaleAccounts(clientId, dateFrom, dateTo, limit = 50, offset = 0) {
+    if (!clientId || !dateFrom || !dateTo) throw new Error('Client and stale-account date range are required.');
+    const { data, error } = await supabase.rpc('portal_feedback_stale_accounts', {
+      p_client_id: clientId,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+      p_limit: limit,
+      p_offset: offset
+    });
+
+    if (error) {
+      console.error('Supabase query error in fetchFeedbackStaleAccounts:', {
+        message: error.message,
+        code: error.code,
+        details: error.details
+      });
+      throw error;
+    }
+    return data || [];
+  }
+
   async fetchBriefFeedback(clientId, companyId, finalBriefRunId) {
     if (!clientId) return null;
     try {
@@ -469,13 +624,34 @@ class SupabaseDataService {
         ...feedbackData
       };
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('portal_brief_feedback')
         .upsert(record, {
           onConflict: 'client_id,run_id,company_id'
         })
         .select()
         .single();
+
+      // Keep feedback usable during a staged deployment where the UI reaches an
+      // environment before the commercial columns migration.
+      if (error?.code === '42703') {
+        const legacyRecord = { ...record };
+        delete legacyRecord.commercial_outcome;
+        delete legacyRecord.actual_deal_value_gbp;
+        delete legacyRecord.outcome_updated_at;
+        delete legacyRecord.known_network_contact_existed;
+        delete legacyRecord.known_network_contact_recommended;
+        delete legacyRecord.selected_contact_role_fit;
+        delete legacyRecord.selected_contact_details_enriched;
+        delete legacyRecord.relationship_source;
+        const legacyResult = await supabase
+          .from('portal_brief_feedback')
+          .upsert(legacyRecord, { onConflict: 'client_id,run_id,company_id' })
+          .select()
+          .single();
+        data = legacyResult.data;
+        error = legacyResult.error;
+      }
 
       if (error) {
         console.error('Supabase query error in saveBriefFeedback:', {
@@ -493,14 +669,26 @@ class SupabaseDataService {
     }
   }
 
-  async fetchBriefAssignments(clientId, finalBriefRunIds) {
+  async fetchBriefAssignments(clientId, finalBriefRunIds, { throwOnError = false } = {}) {
     if (!clientId) return [];
     try {
-      const { data, error } = await supabase
-        .from('portal_brief_assignments_enriched')
-        .select('*')
-        .eq('client_id', clientId)
-        .in('run_id', finalBriefRunIds);
+      const [enrichedResult, closureResult] = await Promise.all([
+        supabase
+          .from('portal_brief_assignments_enriched')
+          .select('*')
+          .eq('client_id', clientId)
+          .in('run_id', finalBriefRunIds),
+        // The enriched assignment view predates the closure audit columns. Read
+        // those browser-safe fields from the RLS-protected base table and merge
+        // them by the immutable company/run identity.
+        supabase
+          .from('portal_brief_assignments')
+          .select('company_id,run_id,closed_at,closed_by,close_reason')
+          .eq('client_id', clientId)
+          .in('run_id', finalBriefRunIds)
+      ]);
+
+      const { data, error } = enrichedResult;
 
       if (error) {
         console.error('Supabase query error in fetchBriefAssignments:', {
@@ -508,12 +696,31 @@ class SupabaseDataService {
           code: error.code,
           details: error.details
         });
+        if (throwOnError) throw error;
         return [];
       }
 
-      return data || [];
+      if (closureResult.error) {
+        console.error('Supabase query error loading assignment closure audit:', {
+          message: closureResult.error.message,
+          code: closureResult.error.code,
+          details: closureResult.error.details
+        });
+        if (throwOnError) throw closureResult.error;
+      }
+
+      const closureByBrief = new Map((closureResult.data || []).map((assignment) => [
+        `${assignment.company_id}_${assignment.run_id}`,
+        assignment
+      ]));
+
+      return (data || []).map((assignment) => ({
+        ...assignment,
+        ...(closureByBrief.get(`${assignment.company_id}_${assignment.run_id}`) || {})
+      }));
     } catch (error) {
       console.error('Error fetching brief assignments:', error);
+      if (throwOnError) throw error;
       return [];
     }
   }
@@ -632,6 +839,68 @@ class SupabaseDataService {
       return data;
     } catch (error) {
       console.error('Error updating brief assignment status:', error);
+      throw error;
+    }
+  }
+
+  async syncBriefLifecycle({ clientId, companyId, finalBriefRunId, status = null, contacted = false, meetingBooked = false }) {
+    try {
+      const { data, error } = await supabase.rpc('portal_sync_brief_lifecycle', {
+        p_client_id: clientId,
+        p_company_id: companyId,
+        p_run_id: finalBriefRunId,
+        p_status: status,
+        p_contacted: contacted === true,
+        p_meeting_booked: meetingBooked === true
+      });
+
+      if (!error) return Array.isArray(data) ? data[0] : data;
+      if (!['42883', 'PGRST202'].includes(error.code)) throw error;
+
+      // Compatibility path for deployments where the transactional RPC has not
+      // reached the database yet. Remove after every environment has migrated.
+      const assignment = await this.fetchBriefAssignment(clientId, companyId, finalBriefRunId);
+      let nextStatus = status;
+      if (!nextStatus && meetingBooked && assignment?.status !== 'closed') nextStatus = 'meeting_booked';
+      if (!nextStatus && contacted && (!assignment || ['assigned', 'reviewing'].includes(assignment.status))) nextStatus = 'contacted';
+      if (!nextStatus) return assignment;
+
+      if (assignment?.id) {
+        return this.updateBriefAssignmentStatus({ assignmentId: assignment.id, status: nextStatus });
+      }
+      return this.upsertBriefAssignment({
+        clientId,
+        companyId,
+        finalBriefRunId,
+        assignedTo: null,
+        status: nextStatus
+      });
+    } catch (error) {
+      console.error('Error synchronizing brief lifecycle:', error);
+      throw error;
+    }
+  }
+
+  async bulkCloseBriefAssignments({ clientId, briefs, closeReason }) {
+    try {
+      const { data, error } = await supabase.rpc('portal_bulk_close_briefs', {
+        p_client_id: clientId,
+        p_briefs: briefs.map(({ company_id, run_id }) => ({ company_id, run_id })),
+        p_close_reason: closeReason.trim()
+      });
+
+      if (error) {
+        console.error('Supabase RPC error in bulkCloseBriefAssignments:', {
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error bulk closing brief assignments:', error);
       throw error;
     }
   }

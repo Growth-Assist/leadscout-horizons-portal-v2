@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/portal-api/:path*",
+      "destination": "https://portal-api-preview.growth-assist.co.uk/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

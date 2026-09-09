@@ -1,3 +1,17 @@
+export type ContactRoleFit =
+  | "primary_buyer"
+  | "influencer"
+  | "fallback"
+  | "outside_configured_icp_roles"
+  | "outside_icp_roles"
+
+export interface ContactRelationshipFields {
+  relationship_source?: string | null
+  enrichment_source?: string | null
+  preferred_contact?: boolean | null
+  role_fit?: ContactRoleFit | null
+}
+
 export type Json =
   | string
   | number
@@ -714,12 +728,16 @@ export type Database = {
           confidence: string | null
           contact_id: string
           email: string | null
+          enrichment_source: string | null
           id: string
           linkedin: string | null
           logged_at: string
           name: string | null
           phone: string | null
+          preferred_contact: boolean
+          relationship_source: string | null
           role: string | null
+          role_fit: ContactRoleFit | null
           row_key: string
           run_id: string
           seq: number
@@ -731,12 +749,16 @@ export type Database = {
           confidence?: string | null
           contact_id: string
           email?: string | null
+          enrichment_source?: string | null
           id?: string
           linkedin?: string | null
           logged_at?: string
           name?: string | null
           phone?: string | null
+          preferred_contact?: boolean
+          relationship_source?: string | null
           role?: string | null
+          role_fit?: ContactRoleFit | null
           row_key: string
           run_id: string
           seq?: never
@@ -748,12 +770,16 @@ export type Database = {
           confidence?: string | null
           contact_id?: string
           email?: string | null
+          enrichment_source?: string | null
           id?: string
           linkedin?: string | null
           logged_at?: string
           name?: string | null
           phone?: string | null
+          preferred_contact?: boolean
+          relationship_source?: string | null
           role?: string | null
+          role_fit?: ContactRoleFit | null
           row_key?: string
           run_id?: string
           seq?: never
@@ -1326,9 +1352,14 @@ export type Database = {
           assigned_by: string | null
           assigned_to: string | null
           client_id: string
+          close_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
           company_id: string
+          contacted_at: string | null
           created_at: string
           id: string
+          meeting_booked_at: string | null
           run_id: string
           status: string
           updated_at: string
@@ -1337,9 +1368,14 @@ export type Database = {
           assigned_by?: string | null
           assigned_to?: string | null
           client_id: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           company_id: string
+          contacted_at?: string | null
           created_at?: string
           id?: string
+          meeting_booked_at?: string | null
           run_id: string
           status?: string
           updated_at?: string
@@ -1348,9 +1384,14 @@ export type Database = {
           assigned_by?: string | null
           assigned_to?: string | null
           client_id?: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           company_id?: string
+          contacted_at?: string | null
           created_at?: string
           id?: string
+          meeting_booked_at?: string | null
           run_id?: string
           status?: string
           updated_at?: string
@@ -1367,47 +1408,71 @@ export type Database = {
       }
       portal_brief_feedback: {
         Row: {
+          actual_deal_value_gbp: number | null
           brief_verdict: string
           client_id: string
+          commercial_outcome: string
           company_id: string
           contacted: boolean
           created_at: string
           created_by: string | null
           id: string
+          known_network_contact_existed: boolean
+          known_network_contact_recommended: boolean
           meeting_booked: boolean
           notes: string | null
+          outcome_updated_at: string | null
           quick_reason: string | null
+          relationship_source: string | null
           run_id: string
+          selected_contact_details_enriched: boolean
+          selected_contact_role_fit: ContactRoleFit | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          actual_deal_value_gbp?: number | null
           brief_verdict: string
           client_id: string
+          commercial_outcome?: string
           company_id: string
           contacted?: boolean
           created_at?: string
           created_by?: string | null
           id?: string
+          known_network_contact_existed?: boolean
+          known_network_contact_recommended?: boolean
           meeting_booked?: boolean
           notes?: string | null
+          outcome_updated_at?: string | null
           quick_reason?: string | null
+          relationship_source?: string | null
           run_id: string
+          selected_contact_details_enriched?: boolean
+          selected_contact_role_fit?: ContactRoleFit | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          actual_deal_value_gbp?: number | null
           brief_verdict?: string
           client_id?: string
+          commercial_outcome?: string
           company_id?: string
           contacted?: boolean
           created_at?: string
           created_by?: string | null
           id?: string
+          known_network_contact_existed?: boolean
+          known_network_contact_recommended?: boolean
           meeting_booked?: boolean
           notes?: string | null
+          outcome_updated_at?: string | null
           quick_reason?: string | null
+          relationship_source?: string | null
           run_id?: string
+          selected_contact_details_enriched?: boolean
+          selected_contact_role_fit?: ContactRoleFit | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1460,6 +1525,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      portal_client_qualifier_config: {
+        Row: {
+          client_id: string
+          created_at: string
+          is_active: boolean
+          qualifier_base_url: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          is_active?: boolean
+          qualifier_base_url: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          is_active?: boolean
+          qualifier_base_url?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       portal_email_domain_assignments: {
         Row: {
@@ -1663,8 +1755,10 @@ export type Database = {
           assigned_to_team_role: string | null
           client_id: string | null
           company_id: string | null
+          contacted_at: string | null
           created_at: string | null
           id: string | null
+          meeting_booked_at: string | null
           run_id: string | null
           status: string | null
           updated_at: string | null
@@ -1814,11 +1908,15 @@ export type Database = {
           confidence: string | null
           contact_id: string | null
           email: string | null
+          enrichment_source: string | null
           linkedin: string | null
           logged_at: string | null
           name: string | null
           phone: string | null
+          preferred_contact: boolean | null
+          relationship_source: string | null
           role: string | null
+          role_fit: ContactRoleFit | null
           run_id: string | null
         }
         Relationships: []
@@ -2121,6 +2219,14 @@ export type Database = {
         Args: { target_client_id: string; target_user_id: string }
         Returns: boolean
       }
+      portal_bulk_close_briefs: {
+        Args: {
+          p_briefs: Json
+          p_client_id: string
+          p_close_reason: string
+        }
+        Returns: Json
+      }
       portal_dashboard_summary_for_client: {
         Args: { p_client_id: string }
         Returns: {
@@ -2141,6 +2247,15 @@ export type Database = {
           total_companies: number
           watch_companies: number
         }[]
+      }
+      portal_feedback_note_momentum: {
+        Args: {
+          p_client_id: string
+          p_date_from: string
+          p_date_to: string
+          p_salesperson_id?: string
+        }
+        Returns: Json
       }
       portal_feedback_rows_for_client: {
         Args: {
@@ -2163,6 +2278,27 @@ export type Database = {
           updated_at: string
         }[]
       }
+      portal_feedback_stale_accounts: {
+        Args: {
+          p_client_id: string
+          p_date_from: string
+          p_date_to: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          assigned_to: string
+          assignee_display_name: string
+          assignee_email: string
+          company_id: string
+          company_name: string
+          contacted_at: string
+          latest_note_at: string
+          run_id: string
+          stale_reason: string
+          total_count: number
+        }[]
+      }
       portal_recent_finalized_briefs_for_client: {
         Args: { p_client_id: string; p_limit?: number }
         Returns: {
@@ -2176,6 +2312,17 @@ export type Database = {
           industry: string
           website: string
         }[]
+      }
+      portal_sync_brief_lifecycle: {
+        Args: {
+          p_client_id: string
+          p_company_id: string
+          p_contacted?: boolean
+          p_meeting_booked?: boolean
+          p_run_id: string
+          p_status?: string
+        }
+        Returns: Json
       }
       portal_target_analytics_snapshot: {
         Args: {

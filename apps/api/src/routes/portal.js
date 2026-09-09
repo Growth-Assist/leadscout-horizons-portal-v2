@@ -1,24 +1,76 @@
 import express from 'express';
 import supabaseAdmin from '../utils/supabaseAdmin.js';
 import logger from '../utils/logger.js';
+import { requireAuthenticatedUser, requirePortalUser } from '../middleware/portal-auth.js';
+import {
+  getPortalQualificationStatus,
+  PortalQualifierError,
+  startPortalQualification
+} from '../services/portal-qualifier.js';
 
 const router = express.Router();
 
-router.post('/bootstrap-user', async (req, res) => {
-  logger.info('[API] POST /api/portal/bootstrap-user received');
-  logger.info('[API] Request body: ' + JSON.stringify(req.body));
-
-  const { userId, email, client_id: reqClientId } = req.body;
-  logger.info('[API] client_id: ' + reqClientId);
-
-  if (!userId || !email) {
-    const errResponse = { error: 'userId and email are required' };
-    logger.info('[API] Sending response: ' + JSON.stringify(errResponse));
-    return res.status(400).json(errResponse);
+const sendQualifierError = (res, error) => {
+  if (error instanceof PortalQualifierError) {
+    return res.status(error.status).json({ code: error.code, message: error.message });
   }
 
+  logger.error('[Quick Qualify] Unexpected proxy error: ' + error.message);
+  return res.status(500).json({
+    code: 'QUALIFIER_PROXY_ERROR',
+    message: 'Quick Qualify could not be completed.'
+  });
+};
+
+router.post('/quick-qualify/runs', requirePortalUser, async (req, res) => {
   try {
-    logger.info('[API] Fetching/creating user record');
+    const result = await startPortalQualification(
+      req.portalUser.clientId,
+      req.body
+    );
+    const transactionId = String(result.payload?.transaction_id || '').trim();
+    if (result.status === 202 && !transactionId) {
+      throw new PortalQualifierError(
+        'QUALIFIER_UPSTREAM_INVALID_RESPONSE',
+        'The Quick Qualify service did not return a qualification job identifier.',
+        502
+      );
+    }
+    const payload = result.status === 202 && transactionId
+      ? {
+          ...result.payload,
+          status_url: `/api/portal/quick-qualify/runs/${encodeURIComponent(transactionId)}`
+        }
+      : result.payload;
+
+    return res.status(result.status).json(payload);
+  } catch (error) {
+    return sendQualifierError(res, error);
+  }
+});
+
+router.get('/quick-qualify/runs/:transactionId', requirePortalUser, async (req, res) => {
+  try {
+    const result = await getPortalQualificationStatus(
+      req.portalUser.clientId,
+      req.params.transactionId
+    );
+    return res.status(result.status).json(result.payload);
+  } catch (error) {
+    return sendQualifierError(res, error);
+  }
+});
+
+router.post('/bootstrap-user', requireAuthenticatedUser, async (req, res) => {
+  logger.info('[API] POST /api/portal/bootstrap-user received');
+  const { id: userId } = req.authenticatedUser;
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'Authenticated user is required.' });
+    }
+
+    logger.info(`[API] Bootstrapping authenticated user ${userId}`);
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
 
     if (userError || !userData.user) {
@@ -26,13 +78,15 @@ router.post('/bootstrap-user', async (req, res) => {
     }
 
     const user = userData.user;
-    logger.info('[API] User record: ' + JSON.stringify(user));
+    const email = String(user.email || '').trim();
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Authenticated user email is required.' });
+    }
 
     const appMetadata = user.app_metadata || {};
 
     if (appMetadata.portal_role === 'admin') {
       const response = { success: true, portal_role: 'admin' };
-      logger.info('[API] Sending response: ' + JSON.stringify(response));
       return res.json(response);
     }
 
@@ -42,7 +96,6 @@ router.post('/bootstrap-user', async (req, res) => {
         client_id: appMetadata.client_id,
         portal_role: appMetadata.portal_role || 'viewer',
       };
-      logger.info('[API] Sending response: ' + JSON.stringify(response));
       return res.json(response);
     }
 
@@ -94,14 +147,11 @@ router.post('/bootstrap-user', async (req, res) => {
       portal_role: 'viewer',
     };
     
-    logger.info('[API] Sending response: ' + JSON.stringify(response));
     res.json(response);
 
   } catch (error) {
     logger.error('[API] Error: ' + error.message);
-    const errResponse = { success: false, error: error.message };
-    logger.info('[API] Sending response: ' + JSON.stringify(errResponse));
-    res.status(500).json(errResponse);
+    res.status(500).json({ success: false, error: 'Unable to bootstrap the portal account.' });
   }
 });
 

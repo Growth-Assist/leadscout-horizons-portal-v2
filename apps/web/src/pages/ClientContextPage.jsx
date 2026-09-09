@@ -782,6 +782,23 @@ const ClientContextPage = () => {
       usedKeys.add(serviceOfferingsKey);
     }
 
+    // 4.25 Extract Commercial Model
+    const commercialModelKey = Object.keys(content).find(k => k.toLowerCase() === 'commercial_model');
+    const commercialModelSource = commercialModelKey
+      && typeof content[commercialModelKey] === 'object'
+      && content[commercialModelKey] !== null
+      && !Array.isArray(content[commercialModelKey])
+      ? content[commercialModelKey]
+      : null;
+    const averageDealSize = Number(commercialModelSource?.average_deal_size_gbp);
+    const commercialModel = commercialModelSource ? {
+      averageDealSizeGbp: Number.isFinite(averageDealSize) && averageDealSize > 0 ? averageDealSize : null,
+      additionalFields: Object.entries(commercialModelSource)
+        .filter(([key, value]) => key !== 'average_deal_size_gbp' && value !== null && value !== undefined && value !== '')
+        .map(([key, value]) => ({ key, label: keyToLabel(key), value }))
+    } : null;
+    if (commercialModelKey) usedKeys.add(commercialModelKey);
+
     // 4.5 Extract Structured Context fields
     const structuredContext = {
       differentiation: undefined,
@@ -857,6 +874,7 @@ const ClientContextPage = () => {
       topStrategies, 
       companyProfileData, 
       serviceOfferings, 
+      commercialModel,
       structuredContext, 
       statuses, 
       metrics, 
@@ -1043,6 +1061,50 @@ const ClientContextPage = () => {
                             </div>
                           );
                         })()}
+                      </div>
+                    )}
+
+                    {/* 3.4 COMMERCIAL MODEL SECTION */}
+                    {parsedData.commercialModel && (
+                      <div className="space-y-4">
+                        <SectionHeading icon={DollarSign} title="Commercial Model" />
+                        <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card shadow-sm">
+                          <CardContent className="p-6">
+                            <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)] md:items-center">
+                              <div>
+                                <p className={CLIENT_CONTEXT_STYLES.fieldLabel}>Average deal size</p>
+                                {parsedData.commercialModel.averageDealSizeGbp !== null ? (
+                                  <p className="mt-2 text-4xl font-bold tracking-tight text-foreground tabular-nums">
+                                    {new Intl.NumberFormat('en-GB', {
+                                      style: 'currency',
+                                      currency: 'GBP',
+                                      maximumFractionDigits: 0
+                                    }).format(parsedData.commercialModel.averageDealSizeGbp)}
+                                  </p>
+                                ) : (
+                                  <p className="mt-2 text-lg font-medium text-muted-foreground">Not configured</p>
+                                )}
+                              </div>
+                              <div className="rounded-lg border border-border/60 bg-background/60 p-4">
+                                <p className="text-sm font-medium text-foreground">Management reporting assumption</p>
+                                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                                  Used to estimate contacted potential and meeting pipeline. It is an indicative client-level assumption, not recognised revenue.
+                                </p>
+                              </div>
+                            </div>
+
+                            {parsedData.commercialModel.additionalFields.length > 0 && (
+                              <div className="mt-6 grid grid-cols-1 gap-3 border-t border-border/50 pt-5 sm:grid-cols-2 lg:grid-cols-3">
+                                {parsedData.commercialModel.additionalFields.map((field) => (
+                                  <div key={field.key} className={CLIENT_CONTEXT_STYLES.innerTile}>
+                                    <p className={CLIENT_CONTEXT_STYLES.fieldLabel}>{field.label}</p>
+                                    <div className="mt-1 text-sm font-medium text-foreground">{renderValue(field.value)}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
                       </div>
                     )}
 

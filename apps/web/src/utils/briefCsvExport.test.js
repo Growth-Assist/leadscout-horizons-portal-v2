@@ -12,9 +12,14 @@ const baseRow = (overrides = {}) => ({
   assignment_display_name: '',
   assignment_email: '',
   assignment_status: 'reviewing',
+  assignment_contacted_at: '2026-07-23T10:00:00Z',
+  assignment_meeting_booked_at: null,
+  has_contacted_milestone: true,
+  has_meeting_milestone: false,
   feedback_verdict: 'good',
   feedback_quick_reason: 'Strong fit',
   feedback_contacted: false,
+  feedback_meeting_booked: false,
   feedback_notes: 'Useful note',
   final_brief_generated_at: '2026-07-20T10:00:00Z',
   feedback_created_at: '2026-07-21T10:00:00Z',
@@ -95,6 +100,33 @@ describe('brief CSV export helpers', () => {
     expect(csv).not.toContain('second@example.com');
   });
 
+  it('exports the recommended known-network route even when it was stored later', () => {
+    const fields = getSuggestedContactExportFields({
+      sales_brief: {
+        who_to_contact: {
+          recommended_contact: { name: 'Warm Contact' }
+        }
+      },
+      research_appendix: {
+        contacts: {
+          items: [
+            { name: 'Research Buyer', role_fit: 'primary_buyer' },
+            {
+              name: 'Warm Contact',
+              profession: 'Adviser',
+              relationship_source: 'internal_provider',
+              preferred_contact: true,
+              role_fit: 'outside_icp_roles'
+            }
+          ]
+        }
+      }
+    });
+
+    expect(fields.suggested_contact_name).toBe('Warm Contact');
+    expect(fields.suggested_contact_role).toBe('Adviser');
+  });
+
   it('leaves missing contact email blank without dropping the contact', () => {
     const fields = getSuggestedContactExportFields({
       research_appendix: {
@@ -153,7 +185,7 @@ describe('brief CSV export helpers', () => {
   });
 
   it('keeps existing base CSV fields before appended suggested-contact fields', () => {
-    expect(BRIEF_CSV_HEADERS.slice(0, 16)).toEqual([
+    expect(BRIEF_CSV_HEADERS.slice(0, 21)).toEqual([
       'company_name',
       'company_id',
       'run_id',
@@ -163,9 +195,14 @@ describe('brief CSV export helpers', () => {
       'website',
       'assignee',
       'assignment_status',
+      'contacted_at',
+      'meeting_booked_at',
+      'contact_recorded',
+      'meeting_recorded',
       'brief_verdict',
       'quick_reason',
-      'contacted',
+      'legacy_feedback_contacted',
+      'legacy_feedback_meeting_booked',
       'notes',
       'brief_created_at',
       'feedback_created_at',
@@ -188,7 +225,7 @@ describe('brief CSV export helpers', () => {
       })
     }));
 
-    expect(rowValues.slice(0, 16)).toEqual([
+    expect(rowValues.slice(0, 21)).toEqual([
       'Acme Manufacturing',
       'acme-manufacturing',
       'run-1',
@@ -198,15 +235,20 @@ describe('brief CSV export helpers', () => {
       'https://example.com',
       'Unassigned',
       'assigned',
+      '2026-07-23T10:00:00Z',
+      null,
+      true,
+      false,
       'Good',
       'Strong fit',
+      false,
       false,
       'Useful note',
       '2026-07-20T10:00:00Z',
       '2026-07-21T10:00:00Z',
       '2026-07-22T10:00:00Z'
     ]);
-    expect(rowValues.slice(16)).toEqual([
+    expect(rowValues.slice(21)).toEqual([
       'String JSON Contact',
       'Owner',
       'owner@example.com',

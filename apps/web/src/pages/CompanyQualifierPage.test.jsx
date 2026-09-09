@@ -15,6 +15,8 @@ import {
 vi.mock('@/contexts/AuthContext.jsx', () => ({
   useAuth: () => ({
     currentUser: { email: 'demo@growth-assist.co.uk' },
+    client_id: 'ultraict',
+    session: { access_token: 'test-access-token' },
     logout: vi.fn()
   })
 }));
@@ -34,7 +36,7 @@ vi.mock('@/services/companyQualifierService.js', async () => {
 
 const job = {
   transaction_id: 'txn_123',
-  status_url: 'https://poc.growth-assist.co.uk/runs/txn_123',
+  status_url: '/api/portal/quick-qualify/runs/txn_123',
   website: 'https://quins.co.uk/',
   submitted_at: '2026-08-04T12:00:00.000Z'
 };
@@ -108,7 +110,10 @@ describe('CompanyQualifierPage', () => {
     renderPage();
     submitWebsite();
 
-    await waitFor(() => expect(submitCompanyQualifier).toHaveBeenCalledWith('https://quins.co.uk/'));
+    await waitFor(() => expect(submitCompanyQualifier).toHaveBeenCalledWith(
+      'https://quins.co.uk/',
+      { accessToken: 'test-access-token' }
+    ));
     expect(await screen.findByText('Harlequins')).toBeInTheDocument();
     expect(screen.getByText('Spectator sports')).toBeInTheDocument();
     expect(screen.getByText('target')).toBeInTheDocument();
@@ -209,14 +214,15 @@ describe('CompanyQualifierPage', () => {
     renderPage();
     submitWebsite();
 
-    await waitFor(() => expect(saveActiveQualifierJob).toHaveBeenCalledWith(job));
+    await waitFor(() => expect(saveActiveQualifierJob).toHaveBeenCalledWith(job, { clientId: 'ultraict' }));
     expect(await screen.findByText('Harlequins')).toBeInTheDocument();
     expect(pollCompanyQualifier).toHaveBeenCalledWith(job, expect.objectContaining({
       signal: expect.any(AbortSignal),
+      accessToken: 'test-access-token',
       onStatus: expect.any(Function),
       onTransientError: expect.any(Function)
     }));
-    expect(clearActiveQualifierJob).toHaveBeenCalled();
+    expect(clearActiveQualifierJob).toHaveBeenCalledWith({ clientId: 'ultraict' });
   });
 
   it('shows a safe backend failure and clears the terminal job', async () => {
@@ -226,7 +232,7 @@ describe('CompanyQualifierPage', () => {
     submitWebsite();
 
     expect(await screen.findByText('Research could not be completed.')).toBeInTheDocument();
-    expect(clearActiveQualifierJob).toHaveBeenCalled();
+    expect(clearActiveQualifierJob).toHaveBeenCalledWith({ clientId: 'ultraict' });
   });
 
   it('keeps the job active through a transient polling interruption', async () => {
@@ -253,7 +259,7 @@ describe('CompanyQualifierPage', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     ));
     expect(await screen.findByText('Harlequins')).toBeInTheDocument();
-    expect(clearActiveQualifierJob).toHaveBeenCalled();
+    expect(clearActiveQualifierJob).toHaveBeenCalledWith({ clientId: 'ultraict' });
   });
 
   it('stops automatic polling for a delayed job and checks status on demand', async () => {
@@ -268,8 +274,8 @@ describe('CompanyQualifierPage', () => {
     fireEvent.click(checkButton);
 
     expect(await screen.findByText('Harlequins')).toBeInTheDocument();
-    expect(getCompanyQualifierStatus).toHaveBeenCalledWith(job);
-    expect(clearActiveQualifierJob).toHaveBeenCalled();
+    expect(getCompanyQualifierStatus).toHaveBeenCalledWith(job, { accessToken: 'test-access-token' });
+    expect(clearActiveQualifierJob).toHaveBeenCalledWith({ clientId: 'ultraict' });
   });
 
   it('blocks duplicate submissions while a queued job is active', async () => {

@@ -22,6 +22,11 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { getEcommerceSignalAudit } from '@/utils/briefDataExtractors.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
+import {
+  getFinalBriefContacts,
+  getKnownNetworkRouteGuidance,
+  getRelationshipAnalyticsProperties
+} from '@/utils/contactRelationship.js';
 
 const PUBLIC_BASE_URL = 'https://poc.growth-assist.co.uk';
 
@@ -95,6 +100,8 @@ const BriefDetailPage = () => {
           .select('client_id, company_id, latest_run_id, latest_logged_at, name, website, industry, campaign_id, signal_id, signal_type, fit_score, decision, final_brief_run_id, final_brief_generated_at, has_finalized_brief, final_brief_json')
           .eq('client_id', clientId)
           .eq('company_id', companyId)
+          .eq('has_finalized_brief', true)
+          .not('final_brief_run_id', 'is', null)
           .maybeSingle();
 
         if (targetError) {
@@ -312,6 +319,7 @@ const BriefDetailPage = () => {
     const pdfShareUrl = `${PUBLIC_BASE_URL}/outputs/final-brief/${encodeURIComponent(company_id)}/pdf-share?client=${encodeURIComponent(clientId)}&run_id=${encodeURIComponent(final_brief_run_id || '')}`;
     const htmlUrl = `${PUBLIC_BASE_URL}/outputs/final-brief/${encodeURIComponent(company_id)}/html?client=${encodeURIComponent(clientId)}&run_id=${encodeURIComponent(final_brief_run_id || '')}`;
     const canOpenBrief = Boolean(company_id && clientId && final_brief_run_id && has_finalized_brief);
+    const canUseBriefLifecycle = has_finalized_brief === true && Boolean(final_brief_run_id);
 
     // Fallback UI when no parsed brief is available
     if (!parsedBrief) {
@@ -374,6 +382,18 @@ const BriefDetailPage = () => {
     }
 
     const verdict = parsedBrief.sales_brief?.verdict || {};
+    const whoToContact = parsedBrief.sales_brief?.who_to_contact || {};
+    const finalizedContacts = getFinalBriefContacts(parsedBrief);
+    const knownNetworkRoute = getKnownNetworkRouteGuidance({
+      contacts: finalizedContacts,
+      whoToContact,
+      companyName: parsedBrief?.company_name || targetData?.name || displayName
+    });
+    const relationshipIntelligence = getRelationshipAnalyticsProperties({
+      contacts: finalizedContacts,
+      whoToContact,
+      selectedContact: knownNetworkRoute?.contact
+    });
     const propertiesData = parsedBrief?.research_appendix?.properties?.properties;
     
     // Extract Ecommerce Signal Audit
@@ -462,7 +482,7 @@ const BriefDetailPage = () => {
               <ActionCard
                 icon={Target}
                 heading="Route to Engagement"
-                content={verdict.best_route_to_engagement}
+                content={knownNetworkRoute?.text || verdict.best_route_to_engagement}
                 accentColor="bg-blue-500/10 text-blue-500 border-blue-500/20"
               />
             </div>
@@ -550,14 +570,17 @@ const BriefDetailPage = () => {
 
           {/* Sidebar / Auxiliary Column */}
           <div className="space-y-6">
-            <BriefAssignmentCard
-              key={`assignment-${assignmentRefreshKey}`}
-              clientId={clientId}
-              companyId={company_id}
-              finalBriefRunId={final_brief_run_id}
-              hasFinalizedBrief={has_finalized_brief}
-              currentUser={currentUser}
-            />
+            {canUseBriefLifecycle && (
+              <BriefAssignmentCard
+                key={`assignment-${assignmentRefreshKey}`}
+                clientId={clientId}
+                companyId={company_id}
+                finalBriefRunId={final_brief_run_id}
+                hasFinalizedBrief={has_finalized_brief}
+                currentUser={currentUser}
+                onLifecycleUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
+              />
+            )}
 
             <Card className="border-border shadow-sm">
               <CardHeader className="bg-muted/10 border-b border-border/50">
@@ -584,13 +607,18 @@ const BriefDetailPage = () => {
               </CardContent>
             </Card>
 
-            <BriefFeedbackCard 
-              clientId={clientId} 
-              companyId={company_id} 
-              finalBriefRunId={final_brief_run_id} 
-              hasFinalizedBrief={has_finalized_brief} 
-              onAssignmentUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
-            />
+            {canUseBriefLifecycle && (
+              <BriefFeedbackCard
+                clientId={clientId}
+                companyId={company_id}
+                finalBriefRunId={final_brief_run_id}
+                hasFinalizedBrief={has_finalized_brief}
+                onAssignmentUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
+                lifecycleRefreshKey={assignmentRefreshKey}
+                relationshipIntelligence={relationshipIntelligence}
+                stackActions
+              />
+            )}
           </div>
         </div>
       </PageWrapper>

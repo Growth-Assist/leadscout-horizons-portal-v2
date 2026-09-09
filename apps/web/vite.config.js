@@ -297,6 +297,16 @@ export default defineConfig({
 	server: {
 		port: 3000,
 		cors: true,
+		proxy: {
+			'/portal-api': {
+				target: process.env.PORTAL_API_PROXY_TARGET || 'http://localhost:3001',
+				changeOrigin: true,
+				rewrite: requestPath => requestPath.replace(/^\/portal-api/, ''),
+				configure: proxy => {
+					proxy.on('proxyReq', proxyRequest => proxyRequest.removeHeader('origin'));
+				},
+			},
+		},
 		headers: {
 			'Cross-Origin-Embedder-Policy': 'credentialless',
 		},

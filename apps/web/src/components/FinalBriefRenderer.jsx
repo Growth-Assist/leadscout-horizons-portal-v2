@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -25,6 +25,19 @@ import { renderEmailAsLink } from '@/utils/emailRenderer.js';
 import { getOsRoofCandidateEvidence, getPartnershipFitEvidence, getPlanningApplicationEvidence, getProjectStageEvidence, getPropertyRouteCards } from '@/utils/briefDataExtractors.js';
 import { getContactRouteTypeLabel } from '@/utils/contactRouteTypes.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
+import ProductFitAssessmentSection from '@/components/ProductFitAssessmentSection.jsx';
+import { normalizeProductFitAssessment } from '@/utils/productFitAssessment.js';
+import {
+  contactsMatch,
+  emitRelationshipAnalyticsEvent,
+  getFinalBriefContacts,
+  getRecommendedKnownContact,
+  getRelationshipAnalyticsProperties,
+  getRoleFitLabel,
+  hasEnrichedContactDetails,
+  isKnownNetworkContact,
+  sortContactsForSales
+} from '@/utils/contactRelationship.js';
 
 const getConfidenceColor = (confidence) => {
   const c = (confidence || '').toLowerCase();
@@ -73,7 +86,15 @@ const normalizeLinkedIn = (value) => normalizeIdentity(value)
 
 const getContactName = (contact) => contact?.name || contact?.full_name || contact?.person_name || '';
 
-const getContactRole = (contact) => contact?.role || contact?.title || contact?.job_title || '';
+const getContactRole = (contact) => (
+  contact?.title
+  || contact?.job_title
+  || contact?.enriched_title
+  || (contact?.enrichment_source ? contact?.role : '')
+  || contact?.profession
+  || contact?.role
+  || ''
+);
 
 const getContactEmail = (contact) => contact?.email || contact?.email_address || contact?.contact_email || '';
 
@@ -1495,12 +1516,29 @@ const CompanyContactStrip = ({ companyName, phone }) => {
   );
 };
 
+const RelationshipAnalyticsTracker = ({ properties, briefIdentity }) => {
+  useEffect(() => {
+    emitRelationshipAnalyticsEvent('portal_finalized_brief_viewed', properties);
+  }, [
+    briefIdentity,
+    properties.known_network_contact_existed,
+    properties.known_network_contact_recommended,
+    properties.selected_contact_role_fit,
+    properties.selected_contact_details_enriched,
+    properties.relationship_source
+  ]);
+
+  return null;
+};
+
 const ContactCard = ({
   contact,
   routeLabels = [],
   companyName,
   salesBrief,
-  outreach
+  outreach,
+  isRecommendedKnown = false,
+  analyticsProperties = {}
 }) => {
   const emailDraft = buildBriefEmailDraft({ companyName, contact, salesBrief, outreach });
   const linkedInDraft = buildBriefLinkedInDraft({ companyName, contact, salesBrief, outreach });
@@ -1518,6 +1556,10 @@ const ContactCard = ({
   const linkedin = getContactLinkedIn(contact) || '—';
   const confidenceLabel = getCompactConfidenceLabel(contact.confidence);
   const routeTypeLabel = getContactRouteTypeLabel(contact.route_type);
+  const knownNetwork = isKnownNetworkContact(contact);
+  const roleFitLabel = getRoleFitLabel(contact.role_fit);
+  const detailsEnriched = hasEnrichedContactDetails(contact);
+  const detailsUnavailable = knownNetwork && !detailsEnriched && !getContactEmail(contact) && !contact.telephone && !contact.phone;
 
   const mailtoUrl = emailDraft
     ? `mailto:${encodeURIComponent(emailDraft.to)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
@@ -1530,6 +1572,10 @@ const ContactCard = ({
     setEmailSubject(emailDraft.subject);
     setEmailBody(emailDraft.body);
     setEmailDialogOpen(true);
+    emitRelationshipAnalyticsEvent('portal_outreach_generated', {
+      ...analyticsProperties,
+      outreach_channel: 'email'
+    });
   };
 
   const onCopyDraft = async (event) => {
@@ -1549,6 +1595,10 @@ const ContactCard = ({
     if (!linkedInDraft) return;
     setLinkedInMessage(linkedInDraft.message);
     setLinkedInDialogOpen(true);
+    emitRelationshipAnalyticsEvent('portal_outreach_generated', {
+      ...analyticsProperties,
+      outreach_channel: 'linkedin'
+    });
   };
 
   const onCopyLinkedInDraft = async (event) => {
@@ -1563,13 +1613,31 @@ const ContactCard = ({
   };
 
   return (
-    <Card className="bg-card shadow-sm border-border">
+    <Card className={cn(
+      'bg-card shadow-sm border-border',
+      knownNetwork && 'border-amber-500/35 bg-amber-500/[0.04] ring-1 ring-amber-500/10',
+      isRecommendedKnown && 'border-amber-500/60 bg-amber-500/[0.07] shadow-md'
+    )} data-contact-card="true">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between">
           <div className="min-w-0">
             <p className="font-semibold">{name}</p>
             <p className="text-sm text-muted-foreground">{role}</p>
             <div className="mt-2 flex min-h-8 flex-wrap gap-1.5">
+              {isRecommendedKnown ? (
+                <Badge className="px-2 py-0.5 text-[11px] font-semibold bg-amber-500 text-amber-950 border-amber-500">
+                  Recommended known network contact
+                </Badge>
+              ) : knownNetwork ? (
+                <Badge variant="outline" className="px-2 py-0 text-[11px] font-semibold bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300">
+                  Known network contact
+                </Badge>
+              ) : null}
+              {roleFitLabel && (
+                <Badge variant="outline" className="px-2 py-0 text-[11px] font-medium bg-sky-500/10 text-sky-700 border-sky-500/25 dark:text-sky-300">
+                  {roleFitLabel}
+                </Badge>
+              )}
               {routeTypeLabel && (
                 <Badge
                   variant="outline"
@@ -1612,6 +1680,11 @@ const ContactCard = ({
                 LinkedIn Profile
               </a>
             </div>
+          )}
+          {(detailsEnriched || detailsUnavailable) && (
+            <p className="pt-1 text-xs text-muted-foreground">
+              {detailsEnriched ? 'Contact details enriched' : 'Contact details unavailable'}
+            </p>
           )}
         </div>
 
@@ -1954,6 +2027,7 @@ const FinalBriefRenderer = ({ briefData }) => {
   }
 
   const salesBrief = data.sales_brief || {};
+  const productFitAssessment = normalizeProductFitAssessment(salesBrief.product_fit);
   const outreach = data.outreach || {};
   const researchAppendix = data.research_appendix || {};
   const contactRoute = researchAppendix.contact_route || null;
@@ -1964,14 +2038,15 @@ const FinalBriefRenderer = ({ briefData }) => {
   const partnershipFitEvidence = getPartnershipFitEvidence(data);
   
   // Contacts
-  const contacts = Array.isArray(researchAppendix.contacts?.items) 
-    ? researchAppendix.contacts.items 
-    : (Array.isArray(researchAppendix.contacts) ? researchAppendix.contacts : []);
+  const contacts = getFinalBriefContacts(data);
   const companyContactNumbers = normalizeCompanyContactNumbers(
     researchAppendix.contacts?.company_contact_numbers
   );
   
-  const routeLabelsByContactIndex = buildContactRouteLabels(contacts, salesBrief.who_to_contact || {});
+  const whoToContact = salesBrief.who_to_contact || {};
+  const recommendedKnownContact = getRecommendedKnownContact(contacts, whoToContact);
+  const orderedContacts = sortContactsForSales(contacts, whoToContact);
+  const routeLabelsByContactIndex = buildContactRouteLabels(contacts, whoToContact);
 
   // Extract display name from briefData or data
   const briefDisplayInfo = getBriefDisplayInfo({
@@ -1981,6 +2056,12 @@ const FinalBriefRenderer = ({ briefData }) => {
     fallbackUrl: briefData.website
   });
   const companyName = briefDisplayInfo.displayName || 'Company Brief';
+  const relationshipAnalytics = getRelationshipAnalyticsProperties({
+    contacts,
+    whoToContact,
+    selectedContact: recommendedKnownContact
+  });
+
   const isPropertyLedBrief = briefDisplayInfo.isPropertyLed === true;
   const selectedContactRouteName = getBriefFieldText(contactRoute?.selected_route?.name);
   const companyContactName = isPropertyLedBrief && selectedContactRouteName
@@ -2011,6 +2092,11 @@ const FinalBriefRenderer = ({ briefData }) => {
 
   return (
     <div className="space-y-8">
+      <RelationshipAnalyticsTracker
+        properties={relationshipAnalytics}
+        briefIdentity={`${briefData?.client_id || ''}:${briefData?.company_id || ''}:${briefData?.final_brief_run_id || ''}`}
+      />
+      <ProductFitAssessmentSection assessment={productFitAssessment} />
       {/* HEADER SECTION - Single Column */}
       <div className="space-y-6">
         {/* Company Name */}
@@ -2050,16 +2136,28 @@ const FinalBriefRenderer = ({ briefData }) => {
         />
         {contacts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {contacts.map((contact, i) => (
+            {orderedContacts.map((contact, i) => {
+              const originalIndex = contacts.indexOf(contact);
+              const isRecommendedKnown = Boolean(
+                recommendedKnownContact && contactsMatch(contact, recommendedKnownContact)
+              );
+              return (
               <ContactCard
-                key={i}
+                key={contact.contact_id || contact.apollo_id || contact.email || `${getContactName(contact)}-${i}`}
                 contact={contact}
-                routeLabels={routeLabelsByContactIndex.get(i) || []}
+                routeLabels={routeLabelsByContactIndex.get(originalIndex) || []}
                 companyName={companyName}
                 salesBrief={salesBrief}
                 outreach={outreach}
+                isRecommendedKnown={isRecommendedKnown}
+                analyticsProperties={getRelationshipAnalyticsProperties({
+                  contacts,
+                  whoToContact,
+                  selectedContact: contact
+                })}
               />
-            ))}
+              );
+            })}
           </div>
         ) : (
           <Card className="border-dashed bg-muted/20">

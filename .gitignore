@@ -34,3 +34,10 @@ pnpm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+db/migrations/20260818110629_management_analytics.sql
+db/migrations/20260818110751_harden_management_analytics_config_access.sql
+db/migrations/20260818113929_drop_portal_client_commercial_config.sql
+db/migrations/20260818124708_transactional_brief_lifecycle.sql
+db/migrations/20260818132012_expose_assignment_lifecycle_milestones.sql
+db/migrations/20260819164702_sales_follow_up_momentum.sql
+db/migrations/20260824071534_relationship_intelligence_feedback.sql

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,14 +17,26 @@ import { Calendar } from '@/components/ui/calendar';
 import Header from '@/components/Header.jsx';
 import Sidebar from '@/components/Sidebar.jsx';
 import BriefDetailDrawer from '@/components/BriefDetailDrawer.jsx';
-import { Search, ArrowUpDown, FileText, AlertCircle, ExternalLink, Download, ChevronDown, Calendar as CalendarIcon } from 'lucide-react';
+import BulkCloseBriefsDialog from '@/components/BulkCloseBriefsDialog.jsx';
+import { Search, ArrowUpDown, FileText, AlertCircle, ExternalLink, Download, ChevronDown, Calendar as CalendarIcon, Archive, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import supabaseDataService, { supabase } from '@/services/supabaseDataService.js';
+import supabaseDataService from '@/services/supabaseDataService.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils.js';
 import { normalizeAssignmentStatus } from '@/utils/assignmentStatus.js';
 import { buildBriefsCsv, formatVerdictLabel } from '@/utils/briefCsvExport.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
+import { getAssignmentMilestones } from '@/utils/briefMilestones.js';
+import {
+  createBriefSelectionKey,
+  getReturnedBulkCloseAssignments,
+  hasFinalizedBriefIdentity,
+  isBriefSelectableForBulkClose,
+  MAX_BULK_CLOSE_BRIEFS,
+  toBriefToClose,
+  validateBulkCloseRequest
+} from '@/utils/bulkBriefClose.js';
 
 const PUBLIC_BASE_URL = 'https://poc.growth-assist.co.uk';
 
@@ -62,7 +75,7 @@ const getAssignmentStatusBadge = (status) => {
   return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border/50">Unassigned</Badge>;
 };
 
-const exportBriefsToCSV = (briefs) => {
+const downloadBriefsCsv = (briefs) => {
   if (!briefs || briefs.length === 0) return;
   const csvString = buildBriefsCsv(briefs);
   const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
@@ -78,6 +91,7 @@ const exportBriefsToCSV = (briefs) => {
 
 const BriefsPage = () => {
   const { client_id, currentUser } = useAuth();
+  const { toast } = useToast();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Drawer state management synced with URL
@@ -116,20 +130,27 @@ const BriefsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isManager, setIsManager] = useState(false);
+  const [selectedBriefs, setSelectedBriefs] = useState(() => new Map());
+  const [isBulkCloseDialogOpen, setIsBulkCloseDialogOpen] = useState(false);
+  const [bulkCloseReason, setBulkCloseReason] = useState('');
+  const [bulkCloseError, setBulkCloseError] = useState(null);
+  const [isBulkClosing, setIsBulkClosing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [industryFilter, setIndustryFilter] = useState('all');
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [signalTypeFilter, setSignalTypeFilter] = useState('all');
   const [verdictFilter, setVerdictFilter] = useState([]);
-  const [contactedFilter, setContactedFilter] = useState('all');
+  const [contactRecordedFilter, setContactRecordedFilter] = useState('all');
+  const [meetingRecordedFilter, setMeetingRecordedFilter] = useState('all');
   const [reviewStatusFilter, setReviewStatusFilter] = useState('all');
   
-  const userRole = currentUser?.app_metadata?.portal_role;
-  const [assignmentFilter, setAssignmentFilter] = useState(
-    (userRole === 'manager' || userRole === 'admin') ? 'team_queue' : 'my_briefs'
-  );
+  // Start from the complete active queue. A missing assignment means a valid
+  // finalized brief is available to claim, not that the row should be hidden.
+  const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [assignmentStatusFilter, setAssignmentStatusFilter] = useState('all');
+  const isClosedView = assignmentStatusFilter === 'closed';
   
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -142,20 +163,18 @@ const BriefsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(10);
 
-  const fetchBriefs = useCallback(async () => {
+  const fetchBriefs = useCallback(async ({ background = false } = {}) => {
     if (!client_id) {
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
-      setError(null);
-      
-      if (!supabase) {
-        throw new Error('Supabase client is not initialized');
+      if (!background) {
+        setLoading(true);
+        setError(null);
       }
-
+      
       // 1. Fetch team members to determine manager status
       let members = [];
       try {
@@ -168,25 +187,22 @@ const BriefsPage = () => {
       }
 
       // 2. Fetch main company details
-      const { data: detailData, error: fetchError } = await supabase
-        .from('portal_target_company_detail')
-        .select('client_id, company_id, latest_run_id, final_brief_run_id, name, website, industry, fit_score, decision, latest_logged_at, campaign_id, signal_id, has_finalized_brief, final_brief_generated_at, final_brief_json')
-        .eq('client_id', client_id)
-        .order('fit_score', { ascending: false, nullsFirst: false });
-
-      if (fetchError) throw fetchError;
+      const detailData = await supabaseDataService.fetchAllTargetCompanyDetails(client_id);
+      // Keep the queue model strict even if a stale API response or test fixture
+      // bypasses the server-side finalized-brief filters.
+      const finalizedBriefData = (detailData || []).filter(hasFinalizedBriefIdentity);
 
       // 3. Fetch assignments
       let assignmentMap = new Map();
       try {
-        const runIds = (detailData || []).map(d => d.final_brief_run_id).filter(Boolean);
+        const runIds = finalizedBriefData.map(d => d.final_brief_run_id);
         if (runIds.length > 0) {
           // Chunk runIds if too large to avoid query limits
           const chunkSize = 200;
           let allAssignments = [];
           for (let i = 0; i < runIds.length; i += chunkSize) {
             const chunk = runIds.slice(i, i + chunkSize);
-            const chunkAssignments = await supabaseDataService.fetchBriefAssignments(client_id, chunk);
+            const chunkAssignments = await supabaseDataService.fetchBriefAssignments(client_id, chunk, { throwOnError: true });
             allAssignments = [...allAssignments, ...(chunkAssignments || [])];
           }
           
@@ -195,35 +211,23 @@ const BriefsPage = () => {
           });
         }
       } catch (assignErr) {
-        console.warn('Failed to fetch brief assignments:', assignErr);
+        throw new Error(`Failed to load complete assignment data: ${assignErr.message}`);
       }
 
       // 4. Fetch signals
       let signalsData = [];
       try {
-        const { data: sigData, error: sigError } = await supabase
-          .from('portal_company_signals')
-          .select('client_id, company_id, signal_id, type, summary, date')
-          .eq('client_id', client_id);
-          
-        if (sigError) throw sigError;
-        signalsData = sigData || [];
+        signalsData = await supabaseDataService.fetchAllCompanySignals(client_id);
       } catch (sigErr) {
-        console.warn('Failed to fetch company signals, continuing without them:', sigErr);
+        throw new Error(`Failed to load complete company signal data: ${sigErr.message}`);
       }
 
       // 5. Fetch feedback
       let feedbackData = [];
       try {
-        const { data: fbData, error: fbError } = await supabase
-          .from('portal_brief_feedback')
-          .select('client_id, company_id, run_id, brief_verdict, contacted, quick_reason, notes, created_at, updated_at, meeting_booked')
-          .eq('client_id', client_id);
-          
-        if (fbError) throw fbError;
-        feedbackData = fbData || [];
+        feedbackData = await supabaseDataService.fetchAllBriefFeedback(client_id);
       } catch (fbErr) {
-        console.warn('Failed to fetch brief feedback, continuing without it:', fbErr);
+        throw new Error(`Failed to load complete brief feedback data: ${fbErr.message}`);
       }
 
       const signalTypesByCompanyId = new Map();
@@ -243,10 +247,17 @@ const BriefsPage = () => {
         }
       });
 
+      const teamMemberByUserId = new Map(
+        members.filter(member => member.user_id).map(member => [member.user_id, member])
+      );
+
       // 6. Assemble enriched data
-      const enrichedData = (detailData || []).map(c => {
+      const enrichedData = finalizedBriefData.map(c => {
         const fb = feedbackMap.get(`${c.company_id}_${c.final_brief_run_id}`);
         const assignment = assignmentMap.get(`${c.company_id}_${c.final_brief_run_id}`);
+        const closingMember = assignment?.closed_by
+          ? teamMemberByUserId.get(assignment.closed_by)
+          : null;
         
         return {
           ...c,
@@ -264,21 +275,48 @@ const BriefsPage = () => {
           assignment_email: assignment?.assigned_to_email || null,
           assignment_is_active: assignment?.assigned_to_is_active ?? true,
           assignment_status: normalizeAssignmentStatus(assignment?.status) || null,
+          assignment_closed_at: assignment?.closed_at || null,
+          assignment_closed_by: assignment?.closed_by || null,
+          assignment_closed_by_display_name: assignment?.closed_by_display_name || closingMember?.display_name || null,
+          assignment_closed_by_email: assignment?.closed_by_email || closingMember?.email || null,
+          assignment_close_reason: assignment?.close_reason || null,
+          ...getAssignmentMilestones(assignment),
         };
       });
 
       setRawData(enrichedData);
     } catch (err) {
       console.error('Failed to fetch briefs:', err);
-      setError('Failed to load companies from Supabase. Please try again.');
+      if (!background) setError('Failed to load companies from Supabase. Please try again.');
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [client_id, currentUser]);
 
   useEffect(() => {
     fetchBriefs();
   }, [fetchBriefs]);
+
+  useEffect(() => {
+    setSelectedBriefs(new Map());
+    setIsBulkCloseDialogOpen(false);
+    setBulkCloseReason('');
+    setBulkCloseError(null);
+  }, [
+    client_id,
+    searchQuery,
+    industryFilter,
+    campaignFilter,
+    signalTypeFilter,
+    verdictFilter,
+    contactRecordedFilter,
+    meetingRecordedFilter,
+    reviewStatusFilter,
+    assignmentFilter,
+    assignmentStatusFilter,
+    fromDate,
+    toDate
+  ]);
 
   const formatLabel = (str) => {
     if (!str) return '';
@@ -301,12 +339,13 @@ const BriefsPage = () => {
     let meetingBooked = 0;
 
     rawData.forEach(brief => {
+      if (normalizeAssignmentStatus(brief.assignment_status) === 'closed') return;
       if (brief.has_finalized_brief === true) generated++;
       if (brief.assignment_assigned_to === currentUser?.id) myBriefs++;
       if (brief.has_finalized_brief === true && !brief.assignment_assigned_to) unassigned++;
       if (brief.feedback_verdict !== null && brief.feedback_verdict !== undefined && brief.feedback_verdict !== '') reviewed++;
-      if (brief.feedback_contacted === true) contacted++;
-      if (brief.feedback_meeting_booked === true) meetingBooked++;
+      if (brief.has_contacted_milestone) contacted++;
+      if (brief.has_meeting_milestone) meetingBooked++;
     });
 
     return { generated, myBriefs, unassigned, reviewed, contacted, meetingBooked };
@@ -314,9 +353,6 @@ const BriefsPage = () => {
 
   const processedData = useMemo(() => {
     let mapped = rawData.map(row => {
-      const fb = row.final_brief_json || {};
-      const fbCompany = fb.research_appendix?.company || {};
-
       const rawScoreVal = row.fit_score;
       const parsedScore = rawScoreVal !== null && rawScoreVal !== undefined && rawScoreVal !== '' 
         ? Number(rawScoreVal) 
@@ -326,8 +362,8 @@ const BriefsPage = () => {
       const snapshotDecision = row.decision || '';
       const briefDisplayInfo = getBriefDisplayInfo({
         row,
-        parsedBrief: fb,
-        fallbackName: row.name || fb.company_name || row.company_id,
+        parsedBrief: null,
+        fallbackName: row.name || row.company_id,
         fallbackUrl: row.website
       });
 
@@ -337,8 +373,8 @@ const BriefsPage = () => {
         mappedWebsite: briefDisplayInfo.displayUrl,
         mappedWebsiteLabel: briefDisplayInfo.displayUrlLabel,
         isPropertyLed: briefDisplayInfo.isPropertyLed,
-        mappedIndustry: row.industry || fbCompany.industry || 'Unknown',
-        mappedLocation: row.locations || row.postcode || fbCompany.address || 'Unknown',
+        mappedIndustry: row.industry || 'Unknown',
+        mappedLocation: row.locations || row.postcode || row.address || 'Unknown',
         mappedScore: snapshotScore,
         mappedDecision: normalizeDecision(snapshotDecision),
         mappedUpdated: row.score_updated_at || row.latest_logged_at || null,
@@ -365,10 +401,14 @@ const BriefsPage = () => {
         if (!verdictFilter.includes(item.feedback_verdict)) return false;
       }
 
-      if (contactedFilter !== 'all') {
-        const isContacted = !!item.feedback_contacted;
-        if (contactedFilter === 'yes' && !isContacted) return false;
-        if (contactedFilter === 'no' && isContacted) return false;
+      if (contactRecordedFilter !== 'all') {
+        if (contactRecordedFilter === 'yes' && !item.has_contacted_milestone) return false;
+        if (contactRecordedFilter === 'no' && item.has_contacted_milestone) return false;
+      }
+
+      if (meetingRecordedFilter !== 'all') {
+        if (meetingRecordedFilter === 'yes' && !item.has_meeting_milestone) return false;
+        if (meetingRecordedFilter === 'no' && item.has_meeting_milestone) return false;
       }
 
       if (reviewStatusFilter !== 'all') {
@@ -377,7 +417,12 @@ const BriefsPage = () => {
         if (reviewStatusFilter === 'not_reviewed' && isReviewed) return false;
       }
 
-      // Assignment filtering
+      const normalizedAssignmentStatus = normalizeAssignmentStatus(item.assignment_status);
+      // Closed work is excluded from the default active queue and becomes
+      // visible only through the existing Current status filter.
+      if (!isClosedView && normalizedAssignmentStatus === 'closed') return false;
+      if (isClosedView && normalizedAssignmentStatus !== 'closed') return false;
+
       if (assignmentFilter !== 'all') {
         if (assignmentFilter === 'my_briefs') {
           if (item.assignment_assigned_to !== currentUser?.id) return false;
@@ -386,13 +431,6 @@ const BriefsPage = () => {
         } else if (assignmentFilter === 'team_queue') {
           if (!item.assignment_assigned_to) return false;
         }
-      }
-
-      // Hide closed briefs by default unless explicitly filtering for them
-      const normalizedAssignmentStatus = normalizeAssignmentStatus(item.assignment_status);
-
-      if (normalizedAssignmentStatus === 'closed' && assignmentStatusFilter !== 'closed') {
-        return false;
       }
 
       // Assignment Status filtering
@@ -452,9 +490,9 @@ const BriefsPage = () => {
     });
 
     return filtered;
-  }, [rawData, searchQuery, industryFilter, campaignFilter, signalTypeFilter, verdictFilter, contactedFilter, reviewStatusFilter, assignmentFilter, assignmentStatusFilter, sortField, sortDirection, fromDate, toDate, currentUser]);
+  }, [rawData, searchQuery, industryFilter, campaignFilter, signalTypeFilter, verdictFilter, contactRecordedFilter, meetingRecordedFilter, reviewStatusFilter, assignmentFilter, assignmentStatusFilter, sortField, sortDirection, fromDate, toDate, currentUser, isClosedView]);
 
-  const industries = [...new Set(rawData.map(b => b.industry || (b.final_brief_json?.research_appendix?.company?.industry) || 'Unknown').filter(i => i && i !== 'Unknown'))].sort();
+  const industries = [...new Set(rawData.map(b => b.industry || 'Unknown').filter(i => i && i !== 'Unknown'))].sort();
   const campaigns = [...new Set(rawData.map(b => b.campaign_id).filter(Boolean))].sort();
   const signalTypes = [...new Set(rawData.flatMap(b => b.signal_types).filter(Boolean))].sort();
   const verdicts = [...new Set(rawData.map(b => b.feedback_verdict).filter(Boolean))].sort();
@@ -464,6 +502,181 @@ const BriefsPage = () => {
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const selectedBriefList = Array.from(selectedBriefs.values());
+  const selectablePageBriefs = !isClosedView
+    ? paginatedBriefs.filter(isBriefSelectableForBulkClose)
+    : [];
+  const selectedPageCount = selectablePageBriefs.reduce((count, brief) => {
+    const { company_id, run_id } = toBriefToClose(brief);
+    return count + (selectedBriefs.has(createBriefSelectionKey(company_id, run_id)) ? 1 : 0);
+  }, 0);
+  const pageSelectionState = selectablePageBriefs.length > 0 && selectedPageCount === selectablePageBriefs.length
+    ? true
+    : selectedPageCount > 0 ? 'indeterminate' : false;
+  const tableColumnCount = isClosedView ? 12 : 10;
+
+  const handleExportCsv = async () => {
+    if (processedData.length === 0 || isExporting) return;
+
+    setIsExporting(true);
+    try {
+      const briefJsonRows = await supabaseDataService.fetchFinalBriefJsonForBriefs(client_id, processedData);
+      const jsonByBrief = new Map(briefJsonRows.map((row) => [
+        createBriefSelectionKey(row.company_id, row.final_brief_run_id),
+        row.final_brief_json
+      ]));
+      const exportRows = processedData.map((brief) => ({
+        ...brief,
+        final_brief_json: jsonByBrief.get(createBriefSelectionKey(
+          brief.company_id,
+          brief.final_brief_run_id
+        )) || null
+      }));
+      downloadBriefsCsv(exportRows);
+    } catch (exportError) {
+      console.error('Failed to export briefs:', exportError);
+      toast({
+        variant: 'destructive',
+        title: 'Export failed',
+        description: exportError?.message || 'The brief details could not be loaded for export.'
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const toggleBriefSelection = (brief, checked) => {
+    if (!isBriefSelectableForBulkClose(brief)) return;
+    const payload = toBriefToClose(brief);
+    const key = createBriefSelectionKey(payload.company_id, payload.run_id);
+
+    if (checked && !selectedBriefs.has(key) && selectedBriefs.size >= MAX_BULK_CLOSE_BRIEFS) {
+      toast({
+        variant: 'destructive',
+        title: 'Selection limit reached',
+        description: `You can close up to ${MAX_BULK_CLOSE_BRIEFS} briefs at once.`
+      });
+      return;
+    }
+
+    setSelectedBriefs((current) => {
+      const next = new Map(current);
+      if (checked) {
+        next.set(key, {
+          ...payload,
+          company_name: brief.mappedName || brief.company_id
+        });
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
+
+  const togglePageSelection = (checked) => {
+    const additionalBriefCount = selectablePageBriefs.reduce((count, brief) => {
+      const payload = toBriefToClose(brief);
+      return count + (selectedBriefs.has(createBriefSelectionKey(payload.company_id, payload.run_id)) ? 0 : 1);
+    }, 0);
+    const willReachLimit = checked
+      && selectedBriefs.size + additionalBriefCount > MAX_BULK_CLOSE_BRIEFS;
+
+    setSelectedBriefs((current) => {
+      const next = new Map(current);
+      if (!checked) {
+        selectablePageBriefs.forEach((brief) => {
+          const payload = toBriefToClose(brief);
+          next.delete(createBriefSelectionKey(payload.company_id, payload.run_id));
+        });
+        return next;
+      }
+
+      selectablePageBriefs.forEach((brief) => {
+        const payload = toBriefToClose(brief);
+        const key = createBriefSelectionKey(payload.company_id, payload.run_id);
+        if (!next.has(key) && next.size >= MAX_BULK_CLOSE_BRIEFS) {
+          return;
+        }
+        next.set(key, { ...payload, company_name: brief.mappedName || brief.company_id });
+      });
+      return next;
+    });
+
+    if (willReachLimit) {
+      toast({
+        variant: 'destructive',
+        title: 'Selection limit reached',
+        description: `Only the first ${MAX_BULK_CLOSE_BRIEFS} briefs were selected.`
+      });
+    }
+  };
+
+  const handleBulkCloseDialogChange = (open) => {
+    if (isBulkClosing) return;
+    setIsBulkCloseDialogOpen(open);
+    setBulkCloseError(null);
+    if (!open) setBulkCloseReason('');
+  };
+
+  const handleBulkClose = async () => {
+    const validationError = validateBulkCloseRequest(selectedBriefList, bulkCloseReason);
+    if (validationError) {
+      setBulkCloseError(validationError);
+      return;
+    }
+
+    setIsBulkClosing(true);
+    setBulkCloseError(null);
+    try {
+      const data = await supabaseDataService.bulkCloseBriefAssignments({
+        clientId: client_id,
+        briefs: selectedBriefList,
+        closeReason: bulkCloseReason
+      });
+      const returnedAssignments = getReturnedBulkCloseAssignments(data);
+      const returnedByKey = new Map(returnedAssignments.map((assignment) => [
+        createBriefSelectionKey(assignment.company_id, assignment.run_id),
+        assignment
+      ]));
+      const closedAtFallback = new Date().toISOString();
+
+      setRawData((current) => current.map((brief) => {
+        const key = createBriefSelectionKey(brief.company_id, brief.final_brief_run_id);
+        const assignment = returnedByKey.get(key);
+        if (!assignment) return brief;
+        return {
+          ...brief,
+          assignment_status: 'closed',
+          assignment_closed_at: assignment.closed_at || closedAtFallback,
+          assignment_closed_by: assignment.closed_by || brief.assignment_closed_by || null,
+          assignment_closed_by_display_name: assignment.closed_by_display_name || brief.assignment_closed_by_display_name || null,
+          assignment_closed_by_email: assignment.closed_by_email || brief.assignment_closed_by_email || null,
+          assignment_close_reason: assignment.close_reason || bulkCloseReason.trim()
+        };
+      }));
+
+      const requestedCount = Number(data?.requested_count);
+      const confirmedCount = Number.isFinite(requestedCount) ? requestedCount : selectedBriefList.length;
+      setSelectedBriefs(new Map());
+      setIsBulkCloseDialogOpen(false);
+      setBulkCloseReason('');
+      toast({
+        title: `Closed ${confirmedCount} ${confirmedCount === 1 ? 'brief' : 'briefs'}`,
+        description: 'The selected briefs have been removed from the active queue.'
+      });
+      void fetchBriefs({ background: true });
+    } catch (closeError) {
+      console.error('Failed to bulk close briefs:', closeError);
+      setBulkCloseError(closeError?.message || 'The selected briefs could not be closed.');
+    } finally {
+      setIsBulkClosing(false);
+    }
+  };
 
   // Drawer Navigation Logic
   const selectedIndex = selectedCompanyId ? processedData.findIndex(b => b.company_id === selectedCompanyId) : -1;
@@ -556,6 +769,7 @@ const BriefsPage = () => {
                         ? "Showing team-wide brief progress for this client workspace" 
                         : "Showing your assigned briefs and available opportunities"}
                     </p>
+                    <p className="mt-1 text-xs text-muted-foreground">Contacted and Meeting Booked are historical milestones; Current status shows where each brief sits now.</p>
                   </div>
                   <CardContent className="px-4 pb-4 pt-2 flex flex-wrap items-center gap-x-8 gap-y-4 text-sm">
                     <div className="flex items-center gap-2">
@@ -589,15 +803,17 @@ const BriefsPage = () => {
                   <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <CardTitle>Find The Right Briefs</CardTitle>
-                      <CardDescription>Filter by assignment, status, campaign, signal, or company details.</CardDescription>
+                      <CardDescription>Filter by current assignment status, recorded milestones, campaign, signal, or company details.</CardDescription>
                     </div>
                     <Button 
                       variant="outline" 
-                      onClick={() => exportBriefsToCSV(processedData)}
-                      disabled={processedData.length === 0 || loading}
+                      onClick={handleExportCsv}
+                      disabled={processedData.length === 0 || loading || isExporting}
                     >
-                      <Download className="mr-2 h-4 w-4" />
-                      Export CSV
+                      {isExporting
+                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        : <Download className="mr-2 h-4 w-4" />}
+                      {isExporting ? 'Preparing CSV…' : 'Export CSV'}
                     </Button>
                   </CardHeader>
                   <CardContent>
@@ -627,16 +843,16 @@ const BriefsPage = () => {
                         </SelectContent>
                       </Select>
 
-                      <Select 
-                        value={assignmentStatusFilter} 
+                      <Select
+                        value={assignmentStatusFilter}
                         onValueChange={(v) => { setAssignmentStatusFilter(v); setCurrentPage(1); }}
                         disabled={assignmentFilter === 'unassigned'}
                       >
                         <SelectTrigger className="bg-background">
-                          <SelectValue placeholder="Assignment Status" />
+                          <SelectValue placeholder="Current status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Status: All</SelectItem>
+                          <SelectItem value="all">Current status: All</SelectItem>
                           <SelectItem value="assigned">Assigned</SelectItem>
                           <SelectItem value="contacted">Contacted</SelectItem>
                           <SelectItem value="nurture">Nurture</SelectItem>
@@ -716,14 +932,25 @@ const BriefsPage = () => {
                         </DropdownMenuContent>
                       </DropdownMenu>
 
-                      <Select value={contactedFilter} onValueChange={(v) => { setContactedFilter(v); setCurrentPage(1); }}>
+                      <Select value={contactRecordedFilter} onValueChange={(v) => { setContactRecordedFilter(v); setCurrentPage(1); }}>
                         <SelectTrigger className="bg-background">
-                          <SelectValue placeholder="Contacted" />
+                          <SelectValue placeholder="Contact recorded" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Contacted: All</SelectItem>
-                          <SelectItem value="yes">Yes</SelectItem>
-                          <SelectItem value="no">No</SelectItem>
+                          <SelectItem value="all">Contact recorded: All</SelectItem>
+                          <SelectItem value="yes">Contact recorded: Yes</SelectItem>
+                          <SelectItem value="no">Contact recorded: No</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={meetingRecordedFilter} onValueChange={(v) => { setMeetingRecordedFilter(v); setCurrentPage(1); }}>
+                        <SelectTrigger className="bg-background">
+                          <SelectValue placeholder="Meeting recorded" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Meeting recorded: All</SelectItem>
+                          <SelectItem value="yes">Meeting recorded: Yes</SelectItem>
+                          <SelectItem value="no">Meeting recorded: No</SelectItem>
                         </SelectContent>
                       </Select>
 
@@ -802,17 +1029,47 @@ const BriefsPage = () => {
                 <Card className="bg-card border-border/50 text-card-foreground shadow-sm">
                   <CardHeader className="flex flex-row items-center justify-between bg-muted/10 border-b border-border/50">
                     <div>
-                      <CardTitle className="text-base text-foreground">Briefs Ready For Review</CardTitle>
+                      <CardTitle className="text-base text-foreground">
+                        {isClosedView ? 'Closed Briefs' : 'Briefs Ready For Review'}
+                      </CardTitle>
                       <CardDescription>
-                        Showing {paginatedBriefs.length} of {processedData.length} target companies
+                        {isClosedView
+                          ? `Showing ${paginatedBriefs.length} of ${processedData.length} closed finalised briefs`
+                          : `Showing ${paginatedBriefs.length} of ${processedData.length} finalised briefs ready for review`}
                       </CardDescription>
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
+                    {!isClosedView && selectedBriefList.length > 0 && (
+                      <div className="flex flex-col gap-3 border-b border-border/50 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="text-sm font-medium text-foreground">
+                          {selectedBriefList.length} {selectedBriefList.length === 1 ? 'brief' : 'briefs'} selected
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedBriefs(new Map())} disabled={isBulkClosing}>
+                            Clear selection
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => setIsBulkCloseDialogOpen(true)} disabled={isBulkClosing}>
+                            <Archive className="mr-2 h-4 w-4" />
+                            Close selected
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow className="hover:bg-transparent">
+                            {!isClosedView && (
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  checked={pageSelectionState}
+                                  onCheckedChange={(checked) => togglePageSelection(checked === true)}
+                                  disabled={selectablePageBriefs.length === 0 || isBulkClosing}
+                                  aria-label="Select all eligible briefs on this page"
+                                />
+                              </TableHead>
+                            )}
                             <TableHead className="cursor-pointer text-foreground" onClick={() => handleSort('company_name')}>
                               <div className="flex items-center gap-2">
                                 Company
@@ -856,6 +1113,9 @@ const BriefsPage = () => {
                                 <ArrowUpDown className="h-4 w-4" />
                               </div>
                             </TableHead>
+                            {isClosedView && <TableHead className="text-foreground min-w-[130px]">Closed</TableHead>}
+                            {isClosedView && <TableHead className="text-foreground min-w-[160px]">Closed By</TableHead>}
+                            {isClosedView && <TableHead className="text-foreground min-w-[220px]">Close Reason</TableHead>}
                             <TableHead className="text-right text-foreground">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -863,6 +1123,7 @@ const BriefsPage = () => {
                           {loading ? (
                             Array.from({ length: 5 }).map((_, i) => (
                               <TableRow key={i}>
+                                {!isClosedView && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                                 <TableCell><Skeleton className="h-8 w-40" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                                 <TableCell><Skeleton className="h-6 w-24" /></TableCell>
@@ -871,27 +1132,48 @@ const BriefsPage = () => {
                                 <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                                 <TableCell><Skeleton className="h-6 w-20" /></TableCell>
                                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                {isClosedView && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
+                                {isClosedView && <TableCell><Skeleton className="h-4 w-28" /></TableCell>}
+                                {isClosedView && <TableCell><Skeleton className="h-4 w-40" /></TableCell>}
                                 <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                               </TableRow>
                             ))
                           ) : paginatedBriefs.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                              <TableCell colSpan={tableColumnCount} className="h-32 text-center text-muted-foreground">
                                 No companies found matching your criteria.
                               </TableCell>
                             </TableRow>
                           ) : (
                             paginatedBriefs.map((brief) => {
                               const assigneeName = brief.assignment_display_name || brief.assignment_email;
+                              const selectionPayload = toBriefToClose(brief);
+                              const selectionKey = createBriefSelectionKey(selectionPayload.company_id, selectionPayload.run_id);
+                              const isSelected = selectedBriefs.has(selectionKey);
+                              const isSelectable = isBriefSelectableForBulkClose(brief);
+                              const closerName = brief.assignment_closed_by_display_name
+                                || brief.assignment_closed_by_email
+                                || (brief.assignment_closed_by ? 'Portal user' : 'Unknown');
                               return (
                                 <TableRow
-                                  key={brief.company_id}
+                                  key={selectionKey}
                                   className={cn(
                                     "cursor-pointer hover:bg-muted/50 transition-colors",
-                                    selectedCompanyId === brief.company_id && "bg-muted/30"
+                                    selectedCompanyId === brief.company_id && "bg-muted/30",
+                                    isSelected && "bg-primary/5"
                                   )}
                                   onClick={(e) => handleRowClick(e, brief)}
                                 >
+                                  {!isClosedView && (
+                                    <TableCell onClick={(event) => event.stopPropagation()}>
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onCheckedChange={(checked) => toggleBriefSelection(brief, checked === true)}
+                                        disabled={!isSelectable || isBulkClosing || (!isSelected && selectedBriefList.length >= MAX_BULK_CLOSE_BRIEFS)}
+                                        aria-label={`Select ${brief.mappedName || brief.company_id}`}
+                                      />
+                                    </TableCell>
+                                  )}
                                   <TableCell>
                                     <div className="font-medium text-primary max-w-[200px] truncate" title={brief.mappedName}>
                                       {brief.mappedName}
@@ -945,6 +1227,21 @@ const BriefsPage = () => {
                                   <TableCell className="text-muted-foreground tabular-nums text-sm">
                                     {brief.mappedUpdated ? new Date(brief.mappedUpdated).toLocaleDateString() : 'N/A'}
                                   </TableCell>
+                                  {isClosedView && (
+                                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                                      {brief.assignment_closed_at ? new Date(brief.assignment_closed_at).toLocaleDateString() : 'Unknown'}
+                                    </TableCell>
+                                  )}
+                                  {isClosedView && (
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {closerName}
+                                    </TableCell>
+                                  )}
+                                  {isClosedView && (
+                                    <TableCell className="max-w-[280px] text-sm text-muted-foreground" title={brief.assignment_close_reason || ''}>
+                                      <span className="line-clamp-2">{brief.assignment_close_reason || 'No reason recorded'}</span>
+                                    </TableCell>
+                                  )}
                                   <TableCell>
                                     <div className="flex items-center justify-end gap-1">
                                       {Boolean(brief.hasFinalizedBrief && brief.company_id && brief.client_id && brief.finalBriefRunId) && (
@@ -1045,6 +1342,20 @@ const BriefsPage = () => {
               />
             )}
           </AnimatePresence>
+
+          <BulkCloseBriefsDialog
+            open={isBulkCloseDialogOpen}
+            onOpenChange={handleBulkCloseDialogChange}
+            selectedBriefs={selectedBriefList}
+            closeReason={bulkCloseReason}
+            onCloseReasonChange={(value) => {
+              setBulkCloseReason(value);
+              setBulkCloseError(null);
+            }}
+            onConfirm={handleBulkClose}
+            submitting={isBulkClosing}
+            error={bulkCloseError}
+          />
           
         </div>
       </div>

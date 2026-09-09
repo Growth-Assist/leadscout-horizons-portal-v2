@@ -13,7 +13,7 @@ vi.mock('@/services/supabaseDataService.js', () => ({
     fetchBriefAssignment: vi.fn(),
     fetchPortalTeamMembers: vi.fn(),
     claimBriefAssignment: vi.fn(),
-    updateBriefAssignmentStatus: vi.fn(),
+    syncBriefLifecycle: vi.fn(),
     upsertBriefAssignment: vi.fn()
   }
 }));
@@ -85,7 +85,7 @@ describe('BriefAssignmentCard', () => {
         is_active: true
       }
     ]);
-    supabaseDataService.updateBriefAssignmentStatus.mockResolvedValue();
+    supabaseDataService.syncBriefLifecycle.mockResolvedValue({ status: 'nurture' });
 
     render(
       <BriefAssignmentCard
@@ -104,8 +104,10 @@ describe('BriefAssignmentCard', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Move assignment to Nurture' }));
 
     await waitFor(() => {
-      expect(supabaseDataService.updateBriefAssignmentStatus).toHaveBeenCalledWith({
-        assignmentId: 'assignment-1',
+      expect(supabaseDataService.syncBriefLifecycle).toHaveBeenCalledWith({
+        clientId: 'growth-assist',
+        companyId: 'company-1',
+        finalBriefRunId: 'run-1',
         status: 'nurture'
       });
     });

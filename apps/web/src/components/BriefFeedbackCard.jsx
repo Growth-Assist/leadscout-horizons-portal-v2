@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ThumbsUp, ThumbsDown, Minus, Loader2, AlertCircle, CheckCircle2, Send, Calendar, User, MessageSquarePlus, Clock } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Minus, Loader2, AlertCircle, CheckCircle2, Send, Calendar, User, MessageSquarePlus, Clock, BadgePoundSterling } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import supabaseDataService from '@/services/supabaseDataService.js';
 import { cn } from '@/lib/utils.js';
@@ -42,7 +43,16 @@ const formatNoteDateTime = (value) => {
   };
 };
 
-const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedBrief, onAssignmentUpdated }) => {
+const BriefFeedbackCard = ({
+  clientId,
+  companyId,
+  finalBriefRunId,
+  hasFinalizedBrief,
+  onAssignmentUpdated,
+  lifecycleRefreshKey = 0,
+  stackActions = false,
+  relationshipIntelligence = null
+}) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,6 +64,8 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
   const [quickReason, setQuickReason] = useState("");
   const [contacted, setContacted] = useState(false);
   const [meetingBooked, setMeetingBooked] = useState(false);
+  const [commercialOutcome, setCommercialOutcome] = useState('open');
+  const [actualDealValue, setActualDealValue] = useState('');
   const [newNote, setNewNote] = useState("");
   const [briefNotes, setBriefNotes] = useState([]);
   const [enrichedData, setEnrichedData] = useState(null);
@@ -62,14 +74,18 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
     verdict: null,
     quickReason: "",
     contacted: false,
-    meetingBooked: false
+    meetingBooked: false,
+    commercialOutcome: 'open',
+    actualDealValue: ''
   });
 
   const isDirty = 
     quickReason !== initialData.quickReason || 
     (verdict !== initialData.verdict && verdict !== null) ||
     contacted !== initialData.contacted ||
-    meetingBooked !== initialData.meetingBooked;
+    meetingBooked !== initialData.meetingBooked ||
+    commercialOutcome !== initialData.commercialOutcome ||
+    actualDealValue !== initialData.actualDealValue;
 
   const loadFeedback = useCallback(async () => {
     if (!clientId || !companyId || !finalBriefRunId || !hasFinalizedBrief) {
@@ -90,26 +106,34 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         setQuickReason(record.quick_reason || "");
         setContacted(record.contacted === true);
         setMeetingBooked(record.meeting_booked === true);
+        setCommercialOutcome(record.commercial_outcome || 'open');
+        setActualDealValue(record.actual_deal_value_gbp == null ? '' : String(record.actual_deal_value_gbp));
         setEnrichedData(record);
         
         setInitialData({
           verdict: record.brief_verdict || null,
           quickReason: record.quick_reason || "",
           contacted: record.contacted === true,
-          meetingBooked: record.meeting_booked === true
+          meetingBooked: record.meeting_booked === true,
+          commercialOutcome: record.commercial_outcome || 'open',
+          actualDealValue: record.actual_deal_value_gbp == null ? '' : String(record.actual_deal_value_gbp)
         });
       } else {
         setVerdict(null);
         setQuickReason("");
         setContacted(false);
         setMeetingBooked(false);
+        setCommercialOutcome('open');
+        setActualDealValue('');
         setEnrichedData(null);
         
         setInitialData({
           verdict: null,
           quickReason: "",
           contacted: false,
-          meetingBooked: false
+          meetingBooked: false,
+          commercialOutcome: 'open',
+          actualDealValue: ''
         });
       }
     } catch (err) {
@@ -124,6 +148,8 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
       setQuickReason("");
       setContacted(false);
       setMeetingBooked(false);
+      setCommercialOutcome('open');
+      setActualDealValue('');
       setBriefNotes([]);
       setEnrichedData(null);
       
@@ -131,12 +157,14 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         verdict: null,
         quickReason: "",
         contacted: false,
-        meetingBooked: false
+        meetingBooked: false,
+        commercialOutcome: 'open',
+        actualDealValue: ''
       });
     } finally {
       setLoading(false);
     }
-  }, [clientId, companyId, finalBriefRunId, hasFinalizedBrief, toast]);
+  }, [clientId, companyId, finalBriefRunId, hasFinalizedBrief, toast, lifecycleRefreshKey]);
 
   useEffect(() => {
     loadFeedback();
@@ -146,7 +174,9 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
     currentVerdict, 
     currentQuickReason, 
     currentContacted, 
-    currentMeetingBooked
+    currentMeetingBooked,
+    currentCommercialOutcome = commercialOutcome,
+    currentActualDealValue = actualDealValue
   ) => {
     if (!clientId || !companyId || !finalBriefRunId) return;
 
@@ -168,6 +198,14 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         throw new Error("Invalid quick reason selected.");
       }
 
+      if (!['open', 'closed_won', 'closed_lost'].includes(currentCommercialOutcome)) {
+        throw new Error('Invalid commercial outcome selected.');
+      }
+      const parsedDealValue = currentActualDealValue === '' ? null : Number(currentActualDealValue);
+      if (parsedDealValue !== null && (!Number.isFinite(parsedDealValue) || parsedDealValue < 0)) {
+        throw new Error('Actual deal value must be a positive GBP amount.');
+      }
+
       const payload = {
         client_id: clientId,
         finalBriefRunId,
@@ -175,10 +213,31 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         brief_verdict: currentVerdict,
         quick_reason: currentQuickReason || null,
         contacted: currentContacted === true,
-        meeting_booked: currentMeetingBooked === true
+        meeting_booked: currentMeetingBooked === true,
+        commercial_outcome: currentCommercialOutcome,
+        actual_deal_value_gbp: currentCommercialOutcome === 'closed_won' ? parsedDealValue : null,
+        outcome_updated_at: currentCommercialOutcome !== initialData.commercialOutcome ? new Date().toISOString() : (enrichedData?.outcome_updated_at || null),
+        ...(relationshipIntelligence || {})
       };
 
       await supabaseDataService.saveBriefFeedback(payload);
+
+      let lifecycleSyncError = null;
+      if (currentContacted || currentMeetingBooked) {
+        try {
+          await supabaseDataService.syncBriefLifecycle({
+            clientId,
+            companyId,
+            finalBriefRunId,
+            contacted: currentContacted === true,
+            meetingBooked: currentMeetingBooked === true
+          });
+          onAssignmentUpdated?.();
+        } catch (err) {
+          lifecycleSyncError = err;
+          console.error('Error synchronizing assignment lifecycle:', err);
+        }
+      }
 
       let assignmentClosed = false;
       let assignmentCloseError = null;
@@ -204,17 +263,19 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
         verdict: currentVerdict,
         quickReason: currentQuickReason || "",
         contacted: currentContacted === true,
-        meetingBooked: currentMeetingBooked === true
+        meetingBooked: currentMeetingBooked === true,
+        commercialOutcome: currentCommercialOutcome,
+        actualDealValue: currentCommercialOutcome === 'closed_won' && parsedDealValue !== null ? String(parsedDealValue) : ''
       });
 
       toast({
         title: "Feedback saved",
         description: assignmentClosed
           ? "Feedback saved and assignment moved to closed."
-          : assignmentCloseError
-            ? "Feedback saved, but the assignment could not be moved to closed."
+          : assignmentCloseError || lifecycleSyncError
+            ? "Feedback saved, but the assignment lifecycle could not be synchronized."
             : "Thank you for your feedback.",
-        variant: assignmentCloseError ? "destructive" : undefined,
+        variant: assignmentCloseError || lifecycleSyncError ? "destructive" : undefined,
       });
       
       // Refetch to get updated creator/editor info
@@ -236,11 +297,11 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
 
   const onVerdictClick = (newVerdict) => {
     setVerdict(newVerdict);
-    handleSave(newVerdict, quickReason, contacted, meetingBooked);
+    handleSave(newVerdict, quickReason, contacted, meetingBooked, commercialOutcome, actualDealValue);
   };
 
   const onManualSave = () => {
-    handleSave(verdict, quickReason, contacted, meetingBooked);
+    handleSave(verdict, quickReason, contacted, meetingBooked, commercialOutcome, actualDealValue);
   };
 
   const onSaveNote = async () => {
@@ -409,37 +470,86 @@ const BriefFeedbackCard = ({ clientId, companyId, finalBriefRunId, hasFinalizedB
             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               Actions
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className={cn('grid grid-cols-1 gap-3', !stackActions && 'sm:grid-cols-2')}>
               <Button
                 type="button"
                 variant="outline"
                 className={cn(
-                  "w-full h-12 justify-center gap-2 transition-all",
+                  "min-w-0 w-full h-12 justify-center gap-2 transition-all",
                   contacted 
                     ? "bg-blue-500/20 text-blue-400 border-blue-500/50 hover:bg-blue-500/30 hover:text-blue-300" 
                     : "hover:bg-muted"
                 )}
-                onClick={() => setContacted(!contacted)}
+                onClick={() => setContacted(true)}
                 disabled={saving}
+                aria-pressed={contacted}
               >
                 <Send className={cn("h-4 w-4", contacted ? "fill-current" : "")} />
-                Contacted
+                {contacted ? 'Contacted recorded' : 'Record contacted'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className={cn(
-                  "w-full h-12 justify-center gap-2 transition-all",
+                  "min-w-0 w-full h-12 justify-center gap-2 transition-all",
                   meetingBooked 
                     ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30 hover:text-emerald-300" 
                     : "hover:bg-muted"
                 )}
-                onClick={() => setMeetingBooked(!meetingBooked)}
+                onClick={() => {
+                  setContacted(true);
+                  setMeetingBooked(true);
+                }}
                 disabled={saving}
+                aria-pressed={meetingBooked}
               >
                 <Calendar className={cn("h-4 w-4", meetingBooked ? "fill-current" : "")} />
-                Meeting booked
+                {meetingBooked ? 'Meeting recorded' : 'Record meeting booked'}
               </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4">
+            <div className="flex items-center gap-2">
+              <BadgePoundSterling className="h-4 w-4 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Commercial outcome</p>
+                <p className="text-xs text-muted-foreground">Track a lightweight result for management reporting.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Outcome</label>
+                <Select
+                  value={commercialOutcome}
+                  onValueChange={(value) => {
+                    setCommercialOutcome(value);
+                    if (value !== 'closed_won') setActualDealValue('');
+                  }}
+                  disabled={saving}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="closed_won">Closed won</SelectItem>
+                    <SelectItem value="closed_lost">Closed lost</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="actual-deal-value" className="text-xs font-medium text-muted-foreground">Actual value (GBP, optional)</label>
+                <Input
+                  id="actual-deal-value"
+                  type="number"
+                  min="0"
+                  step="100"
+                  inputMode="decimal"
+                  placeholder="Uses client average if blank"
+                  value={actualDealValue}
+                  onChange={(event) => setActualDealValue(event.target.value)}
+                  disabled={saving || commercialOutcome !== 'closed_won'}
+                />
+              </div>
             </div>
           </div>
 

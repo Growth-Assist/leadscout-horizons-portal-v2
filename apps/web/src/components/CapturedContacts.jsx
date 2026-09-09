@@ -3,13 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Mail, Phone, Linkedin, Users } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext.jsx';
 import { renderEmailAsLink } from '@/utils/emailRenderer.js';
 import { getContactRouteTypeLabel } from '@/utils/contactRouteTypes.js';
+import { cn } from '@/lib/utils.js';
+import {
+  contactsMatch,
+  getRecommendedKnownContact,
+  getRoleFitLabel,
+  hasEnrichedContactDetails,
+  isKnownNetworkContact,
+  sortContactsForSales,
+  withRecommendedContact
+} from '@/utils/contactRelationship.js';
 
 const CapturedContacts = ({ contactsData, detailData }) => {
-  const { currentUser } = useAuth();
-  
   if (!contactsData || contactsData.length === 0) return null;
 
   let finalBrief = {};
@@ -20,6 +27,10 @@ const CapturedContacts = ({ contactsData, detailData }) => {
   } catch (e) {
     console.error('Failed to parse final brief', e);
   }
+  const whoToContact = finalBrief?.sales_brief?.who_to_contact || {};
+  const contactsWithRecommendation = withRecommendedContact(contactsData, whoToContact);
+  const recommendedKnownContact = getRecommendedKnownContact(contactsWithRecommendation, whoToContact);
+  const orderedContacts = sortContactsForSales(contactsWithRecommendation, whoToContact);
 
   return (
     <Card className="border-border">
@@ -32,26 +43,58 @@ const CapturedContacts = ({ contactsData, detailData }) => {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {contactsData.map((contact, idx) => {
+          {orderedContacts.map((contact, idx) => {
             const routeTypeLabel = getContactRouteTypeLabel(contact.route_type);
-            const role = contact.role || contact.job_title || contact.title;
+            const role = contact.title
+              || contact.job_title
+              || contact.enriched_title
+              || (contact.enrichment_source ? contact.role : '')
+              || contact.profession
+              || contact.role;
             const email = contact.email || contact.email_address || contact.contact_email;
             const phone = contact.telephone || contact.phone;
             const linkedin = contact.linkedin || contact.linkedin_url || contact.linkedin_profile;
+            const knownNetwork = isKnownNetworkContact(contact);
+            const isRecommendedKnown = Boolean(
+              recommendedKnownContact && contactsMatch(contact, recommendedKnownContact)
+            );
+            const roleFitLabel = getRoleFitLabel(contact.role_fit);
+            const detailsEnriched = hasEnrichedContactDetails(contact);
+            const detailsUnavailable = knownNetwork && !detailsEnriched && !email && !phone;
 
             return (
-              <div key={idx} className="flex flex-col gap-3 p-4 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow relative">
+              <div key={contact.contact_id || contact.apollo_id || contact.email || idx} className={cn(
+                'flex flex-col gap-3 p-4 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow relative',
+                knownNetwork && 'border-amber-500/35 bg-amber-500/[0.04] ring-1 ring-amber-500/10',
+                isRecommendedKnown && 'border-amber-500/60 bg-amber-500/[0.07]'
+              )}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-semibold text-base text-foreground">{contact.name || 'Unknown Contact'}</div>
                     {role && (
                       <div className="text-sm text-muted-foreground mt-0.5">{role}</div>
                     )}
-                    {routeTypeLabel && (
+                    {(isRecommendedKnown || knownNetwork || roleFitLabel || routeTypeLabel) && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
+                        {isRecommendedKnown ? (
+                          <Badge className="px-2 py-0.5 text-[11px] font-semibold bg-amber-500 text-amber-950 border-amber-500">
+                            Recommended known network contact
+                          </Badge>
+                        ) : knownNetwork ? (
+                          <Badge variant="outline" className="px-2 py-0 text-[11px] font-semibold bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300">
+                            Known network contact
+                          </Badge>
+                        ) : null}
+                        {roleFitLabel && (
+                          <Badge variant="outline" className="px-2 py-0 text-[11px] font-medium bg-sky-500/10 text-sky-700 border-sky-500/25 dark:text-sky-300">
+                            {roleFitLabel}
+                          </Badge>
+                        )}
+                        {routeTypeLabel && (
                         <Badge variant="outline" className="px-2 py-0 text-[11px] font-medium bg-primary/10 text-primary border-primary/25">
                           {routeTypeLabel}
                         </Badge>
+                        )}
                       </div>
                     )}
                   </div>
@@ -102,6 +145,11 @@ const CapturedContacts = ({ contactsData, detailData }) => {
                       <Linkedin className="h-4 w-4 shrink-0" />
                       LinkedIn Profile
                     </a>
+                  )}
+                  {(detailsEnriched || detailsUnavailable) && (
+                    <span className="text-xs text-muted-foreground">
+                      {detailsEnriched ? 'Contact details enriched' : 'Contact details unavailable'}
+                    </span>
                   )}
                 </div>
               </div>

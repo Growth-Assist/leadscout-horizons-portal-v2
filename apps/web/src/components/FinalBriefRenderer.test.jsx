@@ -30,7 +30,211 @@ const capturedContactsSection = () => (
   screen.getByRole('heading', { name: 'Captured Contacts' }).parentElement
 );
 
-const contactCardFor = (name) => within(capturedContactsSection()).getByText(name).closest('.bg-card');
+const contactCardFor = (name) => within(capturedContactsSection()).getByText(name).closest('[data-contact-card="true"]');
+
+const productFitAssessment = (overrides = {}) => ({
+  assessment_status: 'recommended',
+  best_growth_motion: 'outbound_led',
+  primary_offering: {
+    key: 'sales_intelligence_outbound',
+    label: 'Growth Assist Sales Intelligence — Outbound'
+  },
+  supporting_offerings: [],
+  intelligence_fit: {
+    applicable: true,
+    primary_type: 'Growth Assist Sales Intelligence',
+    supporting_types: []
+  },
+  industry_basis: 'Sports club',
+  confidence: 'high',
+  selection_basis: ['industry_mapping'],
+  rationale: 'The commercial team has a clear outbound partnership objective.',
+  why_now: 'A current commercial programme creates a timely opening.',
+  growth_assist_contribution: [],
+  proposed_outputs: [],
+  information_required: [],
+  evidence: [],
+  ...overrides
+});
+
+describe('FinalBriefRenderer Growth Assist product fit', () => {
+  it('renders the recommended sports-club assessment and badges', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        product_fit: productFitAssessment({
+          supporting_offerings: [{
+            key: 'partnership_intelligence',
+            label: 'Growth Assist Partnership Intelligence'
+          }]
+        })
+      }
+    }));
+
+    expect(screen.getByText('Recommended Growth Assist Offering')).toBeInTheDocument();
+    expect(screen.getByText('Growth Assist Sales Intelligence — Outbound')).toBeInTheDocument();
+    expect(screen.getByText('Growth Assist Partnership Intelligence')).toBeInTheDocument();
+    expect(screen.getByText('Outbound-led')).toBeInTheDocument();
+    expect(screen.getByText('High confidence')).toBeInTheDocument();
+    expect(screen.getByText('Recommended')).toBeInTheDocument();
+  });
+
+  it('keeps stadium redevelopment aligned to Partnership Intelligence', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        product_fit: productFitAssessment({
+          primary_offering: {
+            key: 'partnership_intelligence',
+            label: 'Growth Assist Partnership Intelligence'
+          },
+          intelligence_fit: {
+            applicable: true,
+            primary_type: 'Growth Assist Partnership Intelligence',
+            supporting_types: []
+          },
+          why_now: 'The confirmed stadium redevelopment creates a timely partnership opening.'
+        })
+      }
+    }));
+
+    expect(screen.getAllByText('Growth Assist Partnership Intelligence').length).toBeGreaterThan(0);
+    expect(screen.getByText('Opportunity timing')).toBeInTheDocument();
+    expect(screen.getByText(/confirmed stadium redevelopment/)).toBeInTheDocument();
+    expect(screen.queryByText(/Project Intelligence/i)).not.toBeInTheDocument();
+  });
+
+  it('renders needs-discovery as an amber discovery state without inventing an offering', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        product_fit: productFitAssessment({
+          assessment_status: 'needs_discovery',
+          best_growth_motion: 'needs_discovery',
+          primary_offering: null,
+          confidence: 'medium',
+          rationale: 'The objective is not yet specific enough to select an offering.',
+          information_required: [
+            'Confirm the primary commercial objective.',
+            'Identify the target audience.'
+          ]
+        })
+      }
+    }));
+
+    expect(screen.getAllByText('Needs discovery').length).toBeGreaterThan(0);
+    expect(screen.getByText('More information is required before selecting the primary Growth Assist offering.')).toBeInTheDocument();
+    expect(screen.getByText('Confirm the primary commercial objective.')).toBeInTheDocument();
+    expect(screen.getByText('Identify the target audience.')).toBeInTheDocument();
+    expect(screen.queryByText('Primary offering')).not.toBeInTheDocument();
+    expect(screen.queryByText('Growth Assist Sales Intelligence — Outbound')).not.toBeInTheDocument();
+  });
+
+  it('preserves the legacy layout when product fit is absent', () => {
+    renderBrief(baseBriefJson());
+
+    expect(screen.getByText('Executive Summary')).toBeInTheDocument();
+    expect(screen.queryByText('Recommended Growth Assist Offering')).not.toBeInTheDocument();
+  });
+
+  it('handles partial arrays and evidence with or without safe links', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        product_fit: {
+          assessment_status: 'recommended',
+          best_growth_motion: 'outbound',
+          primary_offering: {
+            key: 'sales_intelligence',
+            label: 'Growth Assist Sales Intelligence'
+          },
+          rationale: 'A focused outbound motion fits the stated objective.',
+          evidence: [
+            {
+              title: 'Commercial strategy',
+              supports: 'The strategy confirms the growth priority.',
+              url: 'https://example.com/strategy'
+            },
+            {
+              title: 'Annual report',
+              supports: 'The report remains useful without a source URL.'
+            },
+            {
+              title: 'Unsafe source',
+              supports: 'The evidence remains readable.',
+              url: 'javascript:alert(1)'
+            }
+          ]
+        }
+      }
+    }));
+
+    const sourceLink = screen.getByRole('link', { name: 'View source' });
+    expect(sourceLink).toHaveAttribute('href', 'https://example.com/strategy');
+    expect(sourceLink).toHaveAttribute('target', '_blank');
+    expect(sourceLink).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByText('The report remains useful without a source URL.')).toBeInTheDocument();
+    expect(screen.getByText('The evidence remains readable.')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'View source' })).toHaveLength(1);
+  });
+
+  it('only renders supporting recommendation groups when populated', () => {
+    const { rerender } = renderBrief(baseBriefJson({
+      sales_brief: { product_fit: productFitAssessment() }
+    }));
+
+    expect(screen.queryByText('Supporting recommendations')).not.toBeInTheDocument();
+
+    const populatedBrief = baseBriefJson({
+      sales_brief: {
+        product_fit: productFitAssessment({
+          supporting_offerings: [{
+            key: 'partnership_intelligence',
+            label: 'Growth Assist Partnership Intelligence'
+          }],
+          intelligence_fit: {
+            applicable: true,
+            primary_type: 'Growth Assist Sales Intelligence',
+            supporting_types: ['Growth Assist Market Intelligence']
+          }
+        })
+      }
+    });
+    rerender(
+      <FinalBriefRenderer
+        briefData={{ company_name: populatedBrief.company_name, final_brief_json: populatedBrief }}
+      />
+    );
+
+    expect(screen.getByText('Supporting recommendations')).toBeInTheDocument();
+    expect(screen.getByText('Growth Assist Partnership Intelligence')).toBeInTheDocument();
+    expect(screen.getByText('Growth Assist Market Intelligence')).toBeInTheDocument();
+  });
+
+  it('does not expose internal engine branding', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        product_fit: productFitAssessment({
+          primary_offering: { key: 'odin', label: 'ODIN Intelligence' },
+          rationale: 'FREY selected this route.',
+          supporting_offerings: [{ key: 'resce', label: 'Resce Labs Research' }],
+          growth_assist_contribution: ['ODIN scoring', 'Growth Assist market mapping'],
+          evidence: [{ title: 'FREY result', supports: 'Resce Labs recommendation' }]
+        })
+      }
+    }));
+
+    expect(screen.getByText('Recommended Growth Assist Offering')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Resce Labs|ODIN|FREY/i);
+    expect(screen.getByText('Growth Assist market mapping')).toBeInTheDocument();
+  });
+
+  it('renders the product-fit section before the executive summary', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: { product_fit: productFitAssessment() }
+    }));
+
+    const productHeading = screen.getByText('Recommended Growth Assist Offering');
+    const summaryHeading = screen.getByText('Executive Summary');
+    expect(productHeading.compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 
 describe('FinalBriefRenderer sales guidance sections', () => {
   it('renders sales guidance as collapsed accordion panels and keeps priority cards visible', () => {
@@ -961,6 +1165,67 @@ describe('FinalBriefRenderer OS roof candidate evidence', () => {
 });
 
 describe('FinalBriefRenderer contact routing badges', () => {
+  it('presents and orders known-network contacts without exposing provider provenance', () => {
+    renderBrief(baseBriefJson({
+      sales_brief: {
+        who_to_contact: {
+          recommended_contact: { name: 'Warm Adviser' },
+          primary_buyer: { title: 'Operations Director' }
+        }
+      },
+      research_appendix: {
+        contacts: {
+          items: [
+            { name: 'Research Fallback', role_fit: 'fallback' },
+            { name: 'Research Buyer', role_fit: 'primary_buyer' },
+            { name: 'Other Known', relationship_source: 'fore_business', role_fit: 'influencer' },
+            {
+              name: 'Warm Adviser',
+              profession: 'Board adviser',
+              relationship_source: 'fore_business',
+              preferred_contact: true,
+              role_fit: 'outside_icp_roles',
+              linkedin: 'https://linkedin.com/in/warm-adviser'
+            }
+          ]
+        }
+      }
+    }));
+
+    const section = capturedContactsSection();
+    const text = section.textContent;
+    expect(text.indexOf('Warm Adviser')).toBeLessThan(text.indexOf('Other Known'));
+    expect(text.indexOf('Other Known')).toBeLessThan(text.indexOf('Research Buyer'));
+    expect(text.indexOf('Research Buyer')).toBeLessThan(text.indexOf('Research Fallback'));
+    expect(within(contactCardFor('Warm Adviser')).getByText('Recommended known network contact')).toBeInTheDocument();
+    expect(within(contactCardFor('Warm Adviser')).getByText('Outside target roles')).toBeInTheDocument();
+    expect(within(contactCardFor('Warm Adviser')).getByText('Contact details unavailable')).toBeInTheDocument();
+    expect(within(contactCardFor('Other Known')).getByText('Known network contact')).toBeInTheDocument();
+    expect(screen.queryByText('fore_business')).not.toBeInTheDocument();
+  });
+
+  it('labels enriched availability without showing the enrichment provider', () => {
+    renderBrief(baseBriefJson({
+      research_appendix: {
+        contacts: {
+          items: [{
+            name: 'Enriched Network',
+            relationship_source: 'internal_provider',
+            enrichment_source: 'apollo.io',
+            title: 'Commercial Director',
+            email: 'network@example.com'
+          }]
+        }
+      }
+    }));
+
+    const card = within(contactCardFor('Enriched Network'));
+    expect(card.getByText('Commercial Director')).toBeInTheDocument();
+    expect(card.getByText('Contact details enriched')).toBeInTheDocument();
+    expect(screen.queryByText('apollo.io')).not.toBeInTheDocument();
+    expect(screen.queryByText('internal_provider')).not.toBeInTheDocument();
+  });
+
   it('shows a route type pill from the contact item without changing existing route badges', () => {
     renderBrief(baseBriefJson({
       sales_brief: {

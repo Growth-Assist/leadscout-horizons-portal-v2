@@ -1,4 +1,5 @@
 import { normalizeAssignmentStatus } from './assignmentStatus.js';
+import { getContactDisplayTitle, sortContactsForSales } from './contactRelationship.js';
 
 export const escapeCSV = (value) => {
   if (value === null || value === undefined) return '';
@@ -44,7 +45,8 @@ export const getSuggestedContact = (finalBriefJson) => {
     ? contacts.items
     : (Array.isArray(contacts) ? contacts : []);
 
-  return items.find((contact) => contact && typeof contact === 'object') || null;
+  const validItems = items.filter((contact) => contact && typeof contact === 'object');
+  return sortContactsForSales(validItems, parsedBrief?.sales_brief?.who_to_contact || {})[0] || null;
 };
 
 export const getSuggestedContactExportFields = (finalBriefJson) => {
@@ -52,7 +54,7 @@ export const getSuggestedContactExportFields = (finalBriefJson) => {
 
   return {
     suggested_contact_name: getFirstValue(contact, ['name']),
-    suggested_contact_role: getFirstValue(contact, ['role', 'title', 'job_title']),
+    suggested_contact_role: cleanText(getContactDisplayTitle(contact)),
     suggested_contact_email: getFirstValue(contact, ['email']),
     suggested_contact_phone: getFirstValue(contact, ['telephone', 'phone', 'mobile']),
     suggested_contact_linkedin: getFirstValue(contact, ['linkedin', 'linkedin_url']),
@@ -71,9 +73,14 @@ export const BRIEF_CSV_HEADERS = [
   'website',
   'assignee',
   'assignment_status',
+  'contacted_at',
+  'meeting_booked_at',
+  'contact_recorded',
+  'meeting_recorded',
   'brief_verdict',
   'quick_reason',
-  'contacted',
+  'legacy_feedback_contacted',
+  'legacy_feedback_meeting_booked',
   'notes',
   'brief_created_at',
   'feedback_created_at',
@@ -101,9 +108,14 @@ export const getBriefCsvRowValues = (row) => {
     row.mappedWebsite,
     assigneeName,
     normalizeAssignmentStatus(row.assignment_status) || '',
+    row.assignment_contacted_at,
+    row.assignment_meeting_booked_at,
+    row.has_contacted_milestone,
+    row.has_meeting_milestone,
     formatVerdictLabel(row.feedback_verdict),
     row.feedback_quick_reason,
     row.feedback_contacted,
+    row.feedback_meeting_booked,
     row.feedback_notes,
     row.final_brief_generated_at,
     row.feedback_created_at,

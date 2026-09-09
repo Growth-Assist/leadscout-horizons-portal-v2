@@ -20,6 +20,11 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { getEcommerceSignalAudit } from '@/utils/briefDataExtractors.js';
 import { getBriefDisplayInfo } from '@/utils/briefDisplay.js';
+import {
+  getFinalBriefContacts,
+  getKnownNetworkRouteGuidance,
+  getRelationshipAnalyticsProperties
+} from '@/utils/contactRelationship.js';
 
 const getDecisionBadge = (decision) => {
   const lower = decision?.toLowerCase() || '';
@@ -72,6 +77,8 @@ const BriefDetailDrawer = ({
         .select('client_id, company_id, latest_run_id, final_brief_run_id, name, website, industry, fit_score, decision, campaign_id, signal_id, signal_type, has_finalized_brief, final_brief_json')
         .eq('client_id', clientId)
         .eq('company_id', companyId)
+        .eq('has_finalized_brief', true)
+        .not('final_brief_run_id', 'is', null)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
@@ -125,6 +132,20 @@ const BriefDetailDrawer = ({
   });
   const displayName = briefDisplayInfo.displayName || 'Loading...';
   const verdict = parsedBrief?.sales_brief?.verdict || {};
+  const whoToContact = parsedBrief?.sales_brief?.who_to_contact || {};
+  const finalizedContacts = getFinalBriefContacts(parsedBrief);
+  const knownNetworkRoute = getKnownNetworkRouteGuidance({
+    contacts: finalizedContacts,
+    whoToContact,
+    companyName: parsedBrief?.company_name || targetData?.name || displayName
+  });
+  const relationshipIntelligence = getRelationshipAnalyticsProperties({
+    contacts: finalizedContacts,
+    whoToContact,
+    selectedContact: knownNetworkRoute?.contact
+  });
+  const canUseBriefLifecycle = targetData?.has_finalized_brief === true
+    && Boolean(targetData?.final_brief_run_id);
   const propertiesData = parsedBrief?.research_appendix?.properties?.properties;
   const website = briefDisplayInfo.displayUrl;
   const websiteTitle = briefDisplayInfo.isPropertyLed ? 'Open in Google Maps' : 'Visit company website';
@@ -303,7 +324,7 @@ const BriefDetailDrawer = ({
                   <ActionCard
                     icon={Target}
                     heading="Route to Engagement"
-                    content={verdict.best_route_to_engagement}
+                    content={knownNetworkRoute?.text || verdict.best_route_to_engagement}
                     accentColor="bg-blue-500/10 text-blue-500 border-blue-500/20"
                   />
                 </div>
@@ -400,24 +421,29 @@ const BriefDetailDrawer = ({
               )}
 
               {/* Assignment & Feedback Section */}
-              <div className="space-y-6 mt-8">
-                <BriefAssignmentCard
-                  key={`assignment-${assignmentRefreshKey}`}
-                  clientId={clientId}
-                  companyId={companyId}
-                  finalBriefRunId={targetData?.final_brief_run_id}
-                  hasFinalizedBrief={targetData?.has_finalized_brief}
-                  currentUser={currentUser}
-                />
+              {canUseBriefLifecycle && (
+                <div className="space-y-6 mt-8">
+                  <BriefAssignmentCard
+                    key={`assignment-${assignmentRefreshKey}`}
+                    clientId={clientId}
+                    companyId={companyId}
+                    finalBriefRunId={targetData.final_brief_run_id}
+                    hasFinalizedBrief={targetData.has_finalized_brief}
+                    currentUser={currentUser}
+                    onLifecycleUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
+                  />
 
-                <BriefFeedbackCard 
-                  clientId={clientId} 
-                  companyId={companyId} 
-                  finalBriefRunId={targetData?.final_brief_run_id} 
-                  hasFinalizedBrief={targetData?.has_finalized_brief} 
-                  onAssignmentUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
-                />
-              </div>
+                  <BriefFeedbackCard
+                    clientId={clientId}
+                    companyId={companyId}
+                    finalBriefRunId={targetData.final_brief_run_id}
+                    hasFinalizedBrief={targetData.has_finalized_brief}
+                    onAssignmentUpdated={() => setAssignmentRefreshKey((key) => key + 1)}
+                    lifecycleRefreshKey={assignmentRefreshKey}
+                    relationshipIntelligence={relationshipIntelligence}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

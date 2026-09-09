@@ -15,7 +15,8 @@ const BriefAssignmentCard = ({
   companyId, 
   finalBriefRunId, 
   hasFinalizedBrief,
-  currentUser 
+  currentUser,
+  onLifecycleUpdated
 }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -128,10 +129,14 @@ const BriefAssignmentCard = ({
     setActionLoading(true);
 
     try {
-      await supabaseDataService.updateBriefAssignmentStatus({
-        assignmentId: assignment.id,
+      const updatedAssignment = await supabaseDataService.syncBriefLifecycle({
+        clientId,
+        companyId,
+        finalBriefRunId,
         status: newStatus
       });
+      if (updatedAssignment) setAssignment(prev => ({ ...prev, ...updatedAssignment, status: newStatus }));
+      onLifecycleUpdated?.();
       
       toast({
         title: "Status updated",

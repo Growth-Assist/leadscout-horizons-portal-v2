@@ -10,22 +10,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import Header from '@/components/Header.jsx';
 import Sidebar from '@/components/Sidebar.jsx';
-import { Search, Download, AlertCircle, ExternalLink, MessageSquare as MessageSquareText, ThumbsUp, ThumbsDown, Minus, Calendar, Send, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Download, AlertCircle, ExternalLink, MessageSquare as MessageSquareText, ThumbsUp, ThumbsDown, Minus, Calendar, Send, ChevronUp, ChevronDown, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '@/services/supabaseDataService.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { cn } from '@/lib/utils.js';
 import { getFeedbackRunIdChunks, mergeFeedbackRowsWithNotes } from '@/utils/feedbackNotes.js';
+import { buildFeedbackReasonSummary, FEEDBACK_REASON_LABELS } from '@/utils/feedbackReasonAnalytics.js';
+import FeedbackMomentumPanel from '@/components/FeedbackMomentumPanel.jsx';
 
-const QUICK_REASON_MAP = {
-  good_fit: 'Good fit',
-  useful_trigger: 'Useful trigger',
-  right_contact: 'Right contact',
-  weak_fit: 'Weak fit',
-  weak_or_missing_evidence: 'Weak/missing evidence',
-  wrong_or_missing_contact: 'Wrong/missing contact',
-  other: 'Other'
+const QUICK_REASON_MAP = Object.fromEntries(
+  Object.entries(FEEDBACK_REASON_LABELS).filter(([key]) => key !== 'not_recorded')
+);
+
+const REASON_GROUP_STYLES = {
+  good: { accent: 'text-green-500', bar: 'bg-green-500', border: 'border-green-500/20', background: 'bg-green-500/5' },
+  bad: { accent: 'text-red-500', bar: 'bg-red-500', border: 'border-red-500/20', background: 'bg-red-500/5' }
 };
+
+const formatPercentage = (value) => value === null ? '—' : `${value.toFixed(1)}%`;
 
 const getVerdictConfig = (verdict) => {
   switch(verdict) {
@@ -166,6 +169,8 @@ const FeedbackPage = () => {
       return acc;
     }, { total: 0, good: 0, mixed: 0, bad: 0, contacted: 0, notContacted: 0, meetingsBooked: 0 });
   }, [rawData]);
+
+  const reasonSummary = useMemo(() => buildFeedbackReasonSummary(rawData), [rawData]);
 
   const handleExportCSV = () => {
     if (processedData.length === 0) return;
@@ -312,6 +317,89 @@ const FeedbackPage = () => {
                       </CardContent>
                     </Card>
                   </div>
+                )}
+
+                {!error && (
+                  <FeedbackMomentumPanel
+                    clientId={client_id}
+                    onOpenBrief={(companyId) => navigate(`/briefs/${encodeURIComponent(companyId)}`)}
+                  />
+                )}
+
+                {!error && (
+                  <Card className="mb-8 bg-card border-border/50 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-xl">
+                        <BarChart3 className="h-5 w-5 text-primary" />
+                        What&apos;s driving feedback?
+                      </CardTitle>
+                      <CardDescription>
+                        A compact view of the strongest positive drivers and the main improvement areas.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {loading && rawData.length === 0 ? (
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          {Array.from({ length: 2 }).map((_, index) => (
+                            <Skeleton key={index} className="h-44 w-full" />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          {reasonSummary.groups.map((group) => {
+                            const style = REASON_GROUP_STYLES[group.id];
+                            return (
+                              <section key={group.id} className={cn('rounded-lg border p-4', style.border, style.background)}>
+                                <div className="mb-4 flex items-start justify-between gap-3">
+                                  <div>
+                                    <h3 className={cn('font-semibold', style.accent)}>{group.title}</h3>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">{group.description}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-semibold tabular-nums">{group.total}</p>
+                                    <p className="text-[11px] text-muted-foreground">responses</p>
+                                  </div>
+                                </div>
+
+                                {group.items.length === 0 ? (
+                                  <div className="flex h-28 items-center justify-center rounded-md border border-dashed border-border/60 text-sm text-muted-foreground">
+                                    No {group.id} feedback yet
+                                  </div>
+                                ) : (
+                                  <div className="space-y-4">
+                                    {group.items.map((item) => (
+                                      <div key={item.reason}>
+                                        <div className="mb-1.5 flex items-start justify-between gap-3 text-sm">
+                                          <span className="leading-tight">{item.label}</span>
+                                          <span className="shrink-0 font-medium tabular-nums">
+                                            {item.count} <span className="font-normal text-muted-foreground">· {formatPercentage(item.share)}</span>
+                                          </span>
+                                        </div>
+                                        <div className="h-2 overflow-hidden rounded-full bg-background/80" aria-hidden="true">
+                                          <div
+                                            className={cn('h-full rounded-full transition-[width]', style.bar)}
+                                            style={{ width: `${item.share ?? 0}%` }}
+                                          />
+                                        </div>
+                                        <p className="mt-1 text-[11px] text-muted-foreground">
+                                          {formatPercentage(item.meetingRate)} meeting conversion
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </section>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/50 pt-3 text-xs text-muted-foreground">
+                        <span>Reason coverage: <strong className="font-medium text-foreground">{formatPercentage(reasonSummary.coverage)}</strong> ({reasonSummary.reasonedCount} of {reasonSummary.total})</span>
+                        {reasonSummary.uncategorizedCount > 0 && <span>{reasonSummary.uncategorizedCount} other or legacy reasons excluded</span>}
+                        <span>Bars show share within each reason group; meeting conversion is shown beneath.</span>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Filters & Actions */}
