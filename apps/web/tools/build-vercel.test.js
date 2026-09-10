@@ -25,7 +25,7 @@ if [ "$1" = login ]; then
 fi
 [ "$2" = '--projectId=test-project' ] || exit 8
 [ "$3" = '--env=staging' ] || exit 8
-[ "$4" = '--path=/web' ] || exit 8
+[ "$4" = '--path=/platform/portal/web' ] || exit 8
 [ "$5" = '--include-imports=false' ] || exit 8
 [ "$6" = '--secret-overriding=false' ] || exit 8
 [ "$INFISICAL_TOKEN" = test-token ] || exit 9

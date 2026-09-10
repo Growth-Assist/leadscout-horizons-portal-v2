@@ -24,11 +24,11 @@ INFISICAL_TOKEN=$(infisical login \
 export INFISICAL_TOKEN
 unset INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET
 
-echo '[build:vercel] Infisical authentication succeeded; loading staging /web.'
+echo '[build:vercel] Infisical authentication succeeded; loading staging /platform/portal/web.'
 exec infisical run \
   --projectId="$INFISICAL_PROJECT_ID" \
   --env=staging \
-  --path=/web \
+  --path=/platform/portal/web \
   --include-imports=false \
   --secret-overriding=false \
   -- sh tools/build-preview-web.sh

@@ -7,17 +7,18 @@ rewrite currently points to the API preview domain.
 ## Infisical preparation
 
 Project: `36505af8-a3bd-4e08-b422-b93529f597a3`, environment: `staging`.
-Create separate folders with the following variables. Both apps must use the
+Use Infisical EU Cloud (`https://eu.infisical.com/api`). Create separate folders
+under `/platform/portal` with the following variables. Both apps must use the
 same Supabase project intended for Preview testing.
 
 | Folder | Variables |
 | --- | --- |
-| `/web` | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PORTAL_API_BASE_URL=/portal-api` |
-| `/api` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGIN=https://preview.growth-assist.co.uk` |
+| `/platform/portal/web` | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PORTAL_API_BASE_URL=/portal-api` |
+| `/platform/portal/api` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGIN=https://preview.growth-assist.co.uk` |
 
 Create a Universal Auth machine identity named
 `vercel-leadscout-web-preview` with secret read access limited to
-`staging:/web`. The web build disables secret imports and personal overrides.
+`staging:/platform/portal/web`. The web build disables secret imports and personal overrides.
 Use the client ID and secret only as Vercel bootstrap variables below.
 
 ## Portal API
@@ -40,7 +41,8 @@ The API must point to the Supabase environment containing
 `portal_client_qualifier_config`. Do not add the service-role key to the web
 project or expose it through a `VITE_` variable.
 
-Create an Infisical Vercel Connection, then a Secret Sync from `staging:/api`
+Create an Infisical Vercel Connection in EU Cloud, then a Secret Sync from
+environment `staging`, secret path `/platform/portal/api`,
 to the new API project's **Preview** environment, branch **TeamQueue**.
 Use key schema `{{secretKey}}`, auto-sync enabled and secret deletion enabled.
 For this new destination, use overwrite-destination initial behaviour only
@@ -87,8 +89,24 @@ Add these variables to **Preview / TeamQueue** in the web Vercel project:
 INFISICAL_CLIENT_ID=<web machine identity client ID>
 INFISICAL_CLIENT_SECRET=<web machine identity client secret>
 INFISICAL_PROJECT_ID=36505af8-a3bd-4e08-b422-b93529f597a3
-INFISICAL_API_URL=https://app.infisical.com/api
+INFISICAL_API_URL=https://eu.infisical.com/api
 INFISICAL_DISABLE_UPDATE_CHECK=true
+```
+
+`apps/web/tools/build-vercel.sh` reads `staging:/platform/portal/web`.
+Its log message and `apps/web/tools/build-vercel.test.js` path assertion match
+that folder.
+
+The Infisical invocation in the updated script must be:
+
+```sh
+infisical run \
+  --projectId="$INFISICAL_PROJECT_ID" \
+  --env=staging \
+  --path=/platform/portal/web \
+  --include-imports=false \
+  --secret-overriding=false \
+  -- sh tools/build-preview-web.sh
 ```
 
 The pinned CLI is installed with npm. `tools/build-vercel.sh` authenticates,
