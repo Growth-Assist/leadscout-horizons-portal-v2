@@ -11,6 +11,7 @@ import {
   XAxis, YAxis
 } from 'recharts';
 import Header from '@/components/Header.jsx';
+import AnalyticsErrorBoundary from '@/components/AnalyticsErrorBoundary.jsx';
 import Sidebar from '@/components/Sidebar.jsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,9 @@ import supabaseDataService from '@/services/supabaseDataService.js';
 import {
   buildManagementInsights, buildManagementMetrics, formatGbp, formatRate, safeRate
 } from '@/utils/managementAnalytics.js';
+
+const isFilterValue = (value) => typeof value === 'string' && value.trim() !== '' && value !== 'all';
+const hasCampaignId = (row) => isFilterValue(row?.id);
 
 const EmptyState = ({ icon: Icon, title, description, compact = false }) => (
   <div className={cn('flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center', compact ? 'min-h-40' : 'min-h-64')}>
@@ -91,11 +95,14 @@ const AnalyticsPage = () => {
   const insights = useMemo(() => buildManagementInsights(metrics, snapshot || {}), [metrics, snapshot]);
   const hasFilters = Object.values(filters).some((value) => value !== 'all');
   const verdicts = useMemo(() => {
-    const source = Array.isArray(snapshot?.verdict_breakdown) ? snapshot.verdict_breakdown : [];
+    const source = Array.isArray(snapshot?.verdict_breakdown) ? snapshot.verdict_breakdown.filter((row) => row && typeof row === 'object') : [];
     const total = source.reduce((sum, row) => sum + Number(row.value || 0), 0);
     return source.map((row) => ({ ...row, rate: safeRate(Number(row.value || 0), total) }));
   }, [snapshot?.verdict_breakdown]);
-  const campaignData = Array.isArray(snapshot?.campaign_breakdown) ? snapshot.campaign_breakdown : [];
+  const campaignData = Array.isArray(snapshot?.campaign_breakdown) ? snapshot.campaign_breakdown.filter((row) => row && typeof row === 'object').map((row) => ({ ...row, label: typeof row.id === 'string' && row.id.trim() ? row.id : 'Unassigned' })) : [];
+
+  const campaignOptions = [...new Map(campaignData.filter(hasCampaignId).map((row) => [row.id, row])).values()];
+  const signalOptions = [...new Set((Array.isArray(snapshot?.signal_type_options) ? snapshot.signal_type_options : []).filter(isFilterValue))];
 
   if (!client_id) {
     return <div className="flex h-screen bg-background"><Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} /><div className="flex flex-1 flex-col"><Header onMenuClick={() => setIsSidebarOpen(true)} /><main className="flex flex-1 items-center justify-center p-8"><EmptyState icon={AlertCircle} title="No client assigned" description="Your account is not assigned to a client workspace." /></main></div></div>;
@@ -118,8 +125,8 @@ const AnalyticsPage = () => {
               {error && <Card className="border-destructive/50 bg-destructive/10"><CardContent className="flex items-center gap-3 p-4 text-sm text-destructive"><AlertCircle className="h-5 w-5" />{error}<Button size="sm" variant="outline" className="ml-auto" onClick={fetchDashboard}>Try again</Button></CardContent></Card>}
 
               <Card className="border-border/60"><CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center"><div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><FilterX className="h-4 w-4" />Filters</div><div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
-                <Select value={filters.campaign} onValueChange={(value) => setFilters((current) => ({ ...current, campaign: value }))}><SelectTrigger><SelectValue placeholder="Campaign" /></SelectTrigger><SelectContent><SelectItem value="all">All campaigns</SelectItem>{campaignData.map((row) => <SelectItem key={row.id} value={row.id}>{row.id}</SelectItem>)}</SelectContent></Select>
-                <Select value={filters.signalType} onValueChange={(value) => setFilters((current) => ({ ...current, signalType: value }))}><SelectTrigger><SelectValue placeholder="Signal type" /></SelectTrigger><SelectContent><SelectItem value="all">All signal types</SelectItem>{(snapshot?.signal_type_options || []).map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
+                <Select value={filters.campaign} onValueChange={(value) => setFilters((current) => ({ ...current, campaign: value }))}><SelectTrigger><SelectValue placeholder="Campaign" /></SelectTrigger><SelectContent><SelectItem value="all">All campaigns</SelectItem>{campaignOptions.map((row) => <SelectItem key={row.id} value={row.id}>{row.id}</SelectItem>)}</SelectContent></Select>
+                <Select value={filters.signalType} onValueChange={(value) => setFilters((current) => ({ ...current, signalType: value }))}><SelectTrigger><SelectValue placeholder="Signal type" /></SelectTrigger><SelectContent><SelectItem value="all">All signal types</SelectItem>{signalOptions.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
                 <Select value={filters.verdict} onValueChange={(value) => setFilters((current) => ({ ...current, verdict: value }))}><SelectTrigger><SelectValue placeholder="Verdict" /></SelectTrigger><SelectContent><SelectItem value="all">All verdicts</SelectItem><SelectItem value="good">Good</SelectItem><SelectItem value="mixed">Mixed</SelectItem><SelectItem value="bad">Bad</SelectItem><SelectItem value="not_reviewed">Pending review</SelectItem></SelectContent></Select>
               </div>{hasFilters && <Button variant="ghost" size="sm" onClick={() => setFilters({ campaign: 'all', signalType: 'all', verdict: 'all' })}>Reset</Button>}</CardContent></Card>
 
@@ -144,7 +151,7 @@ const AnalyticsPage = () => {
                 <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Lightbulb className="h-5 w-5 text-amber-500" />What we are learning and changing</CardTitle><CardDescription>Deterministic observations appear only when the evidence threshold is met.</CardDescription></CardHeader><CardContent>{loading ? <Skeleton className="h-60 w-full" /> : insights.length === 0 ? <EmptyState compact icon={Lightbulb} title="Not enough evidence yet" description="At least five relevant observations are required before the dashboard recommends a change." /> : <div className="space-y-3">{insights.map((insight) => <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} key={insight.title} className="rounded-lg border border-border/60 p-4"><div className="flex items-start gap-3"><CheckCircle2 className={cn('mt-0.5 h-4 w-4 shrink-0', insight.tone === 'attention' ? 'text-amber-500' : 'text-emerald-500')} /><div><p className="font-medium">{insight.title}</p><p className="mt-1 text-sm text-muted-foreground">{insight.evidence}</p><p className="mt-2 text-sm"><span className="font-medium">Change:</span> {insight.action}</p></div></div></motion.div>)}</div>}</CardContent></Card>
               </div>
 
-              <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-5 w-5 text-primary" />Campaign performance</CardTitle><CardDescription>Compare scale with quality and downstream outcomes. Select a campaign to filter the dashboard.</CardDescription></CardHeader><CardContent>{loading ? <Skeleton className="h-72 w-full" /> : campaignData.length === 0 ? <EmptyState icon={BarChart3} title="No campaign data" description="Campaign comparisons appear when targets are assigned to campaigns." /> : <><div className="mb-6 h-64"><ResponsiveContainer width="100%" height="100%"><BarChart data={campaignData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="id" fontSize={11} tickLine={false} axisLine={false} /><YAxis fontSize={11} tickLine={false} axisLine={false} /><RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} /><Legend /><Bar name="Targets" dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} /><Bar name="Briefs" dataKey="generated" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></div><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Campaign</TableHead><TableHead className="text-right">Targets</TableHead><TableHead className="text-right">Brief rate</TableHead><TableHead className="text-right">Good rate</TableHead><TableHead className="text-right">Meeting rate</TableHead><TableHead className="text-right">Won value</TableHead></TableRow></TableHeader><TableBody>{campaignData.map((row) => <TableRow key={row.id} className="cursor-pointer" onClick={() => setFilters((current) => ({ ...current, campaign: current.campaign === row.id ? 'all' : row.id }))}><TableCell className="font-medium text-primary">{row.id}</TableCell><TableCell className="text-right">{row.count}</TableCell><TableCell className="text-right">{formatRate(safeRate(row.generated, row.count))}</TableCell><TableCell className="text-right">{formatRate(row.good_rate)}</TableCell><TableCell className="text-right">{formatRate(row.meeting_rate)}</TableCell><TableCell className="text-right">{formatGbp(row.closed_won_value_gbp) || '—'}</TableCell></TableRow>)}</TableBody></Table></div></>}</CardContent></Card>
+              <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-5 w-5 text-primary" />Campaign performance</CardTitle><CardDescription>Compare scale with quality and downstream outcomes. Select a campaign to filter the dashboard.</CardDescription></CardHeader><CardContent>{loading ? <Skeleton className="h-72 w-full" /> : campaignData.length === 0 ? <EmptyState icon={BarChart3} title="No campaign data" description="Campaign comparisons appear when targets are assigned to campaigns." /> : <><div className="mb-6 h-64"><ResponsiveContainer width="100%" height="100%"><BarChart data={campaignData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} /><YAxis fontSize={11} tickLine={false} axisLine={false} /><RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} /><Legend /><Bar name="Targets" dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} /><Bar name="Briefs" dataKey="generated" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></div><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Campaign</TableHead><TableHead className="text-right">Targets</TableHead><TableHead className="text-right">Brief rate</TableHead><TableHead className="text-right">Good rate</TableHead><TableHead className="text-right">Meeting rate</TableHead><TableHead className="text-right">Won value</TableHead></TableRow></TableHeader><TableBody>{campaignData.map((row, index) => <TableRow key={`${row.id || "unassigned"}-${index}`} className={hasCampaignId(row) ? "cursor-pointer" : undefined} onClick={() => hasCampaignId(row) && setFilters((current) => ({ ...current, campaign: current.campaign === row.id ? 'all' : row.id }))}><TableCell className={cn("font-medium", hasCampaignId(row) && "text-primary")}>{row.label}</TableCell><TableCell className="text-right">{row.count}</TableCell><TableCell className="text-right">{formatRate(safeRate(row.generated, row.count))}</TableCell><TableCell className="text-right">{formatRate(row.good_rate)}</TableCell><TableCell className="text-right">{formatRate(row.meeting_rate)}</TableCell><TableCell className="text-right">{formatGbp(row.closed_won_value_gbp) || '—'}</TableCell></TableRow>)}</TableBody></Table></div></>}</CardContent></Card>
             </div>
           </main>
         </div>
@@ -153,4 +160,6 @@ const AnalyticsPage = () => {
   );
 };
 
-export default AnalyticsPage;
+export default function AnalyticsPageWithRecovery() {
+  return <AnalyticsErrorBoundary><AnalyticsPage /></AnalyticsErrorBoundary>;
+}
