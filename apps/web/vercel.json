@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/portal-api/:path*",
-      "destination": "https://portal-api-preview.growth-assist.co.uk/:path*"
+      "destination": "https://leadscout-horizons-portal-v2-git-99e3b3-growth-assists-projects.vercel.app/:path*"
     },
     {
       "source": "/(.*)",
