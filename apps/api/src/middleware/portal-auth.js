@@ -1,6 +1,18 @@
 import supabaseAdmin from '../utils/supabaseAdmin.js';
+import logger from '../utils/logger.js';
 
 const sendAuthError = (res, status, code, message) => res.status(status).json({ code, message });
+
+// Never log the error object, message, stack, request headers or credentials.
+const logAuthFailure = (reason, error) => {
+  const code = error?.code;
+  const status = error?.status;
+  logger.warn('[portal-auth] Session verification failed', {
+    reason,
+    supabase_code: typeof code === 'string' && /^[a-z][a-z_]{0,63}$/.test(code) ? code : null,
+    supabase_status: Number.isInteger(status) && status >= 100 && status <= 599 ? status : null
+  });
+};
 
 export const createRequireAuthenticatedUser = (authClient = supabaseAdmin) => async (req, res, next) => {
   const authorization = String(req.get('authorization') || '').trim();
@@ -15,6 +27,7 @@ export const createRequireAuthenticatedUser = (authClient = supabaseAdmin) => as
     const user = data?.user;
 
     if (error || !user) {
+      logAuthFailure(error ? 'supabase_rejected' : 'user_missing', error);
       return sendAuthError(res, 401, 'PORTAL_AUTH_INVALID', 'The portal session is invalid or expired.');
     }
 
@@ -24,7 +37,8 @@ export const createRequireAuthenticatedUser = (authClient = supabaseAdmin) => as
       appMetadata: user.app_metadata || {}
     };
     return next();
-  } catch {
+  } catch (error) {
+    logAuthFailure('verification_exception', error);
     return sendAuthError(res, 401, 'PORTAL_AUTH_INVALID', 'The portal session could not be verified.');
   }
 };
